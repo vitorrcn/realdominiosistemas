@@ -37,9 +37,9 @@ export default function LoginPage() {
         {/* Logo / cabeçalho */}
         <div className="text-center mb-8">
           <img
-            src="/logo.png"
+            src="/logo.jpg"
             alt="Grupo Real Domínio"
-            className="mx-auto w-20 h-20 rounded-2xl mb-4 shadow-sm object-contain bg-white/5"
+            className="mx-auto w-20 h-20 rounded-2xl mb-4 shadow-sm object-cover"
           />
           <h1 className="text-xl font-semibold text-white">Sistema de Operações Grupo Real Domínio</h1>
         </div>

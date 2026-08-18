@@ -83,7 +83,7 @@ export function Sidebar() {
     <aside className="w-60 flex-shrink-0 bg-ink-900 border-r border-white/10 flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 h-16 border-b border-white/10">
-        <img src="/logo.png" alt="Grupo Real Domínio" className="w-8 h-8 rounded-lg flex-shrink-0 object-contain bg-white/5" />
+        <img src="/logo.jpg" alt="Grupo Real Domínio" className="w-8 h-8 rounded-lg flex-shrink-0 object-cover" />
         <div>
           <div className="text-sm font-semibold text-white leading-none">Real Domínio</div>
           <div className="text-xs text-gray-400 mt-0.5">Gestão operacional</div>
