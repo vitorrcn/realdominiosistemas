@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-geist-sans: "Geist", system-ui, sans-serif;
+    --font-geist-mono: "Geist Mono", monospace;
+  }
+
+  * {
+    @apply border-gray-200;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  /* Scrollbar sutil */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+}
+
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-white border border-gray-200 rounded-xl p-5;
+  }
+
+  /* Botões base */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg
+           border border-gray-200 bg-white text-gray-700
+           hover:bg-gray-50 active:scale-[0.98]
+           transition-all duration-100 cursor-pointer select-none;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-white border-brand-600
+           hover:bg-brand-700 active:bg-brand-800;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white border-red-600
+           hover:bg-red-700;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-icon {
+    @apply p-2 border border-gray-200 rounded-lg bg-white
+           hover:bg-gray-50 active:scale-95 transition-all;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full px-3 py-2 text-sm border border-gray-200 rounded-lg
+           bg-white text-gray-900 placeholder-gray-400
+           focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent
+           transition-shadow;
+  }
+
+  /* Select */
+  .select {
+    @apply input appearance-none cursor-pointer;
+  }
+
+  /* Label */
+  .label {
+    @apply block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wide;
+  }
+
+  /* Badges de status */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-green  { @apply bg-green-100 text-green-800; }
+  .badge-yellow { @apply bg-yellow-100 text-yellow-800; }
+  .badge-blue   { @apply bg-blue-100 text-blue-800; }
+  .badge-gray   { @apply bg-gray-100 text-gray-700; }
+  .badge-red    { @apply bg-red-100 text-red-800; }
+  .badge-pink   { @apply bg-pink-100 text-pink-800; }
+  .badge-orange { @apply bg-orange-100 text-orange-800; }
+
+  /* Tabelas */
+  .table-auto-fixed {
+    @apply w-full text-sm;
+    table-layout: fixed;
+  }
+  .table-auto-fixed thead th {
+    @apply px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide
+           bg-gray-50 border-b border-gray-200 select-none;
+  }
+  .table-auto-fixed tbody td {
+    @apply px-4 py-3 text-sm text-gray-700 border-b border-gray-100
+           truncate align-middle;
+  }
+  .table-auto-fixed tbody tr {
+    @apply hover:bg-gray-50 cursor-pointer transition-colors;
+  }
+  .table-auto-fixed tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  /* Usada em colunas com botões/ações — não pode cortar o conteúdo */
+  .table-auto-fixed td.sem-corte {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  /* Metric cards */
+  .metric-card {
+    @apply bg-white border border-gray-200 rounded-xl p-4;
+  }
+  .metric-label {
+    @apply text-xs text-gray-500 mb-1;
+  }
+  .metric-value {
+    @apply text-2xl font-semibold text-gray-900;
+  }
+  .metric-sub {
+    @apply text-xs text-gray-400 mt-0.5;
+  }
+
+  /* Sidebar item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg
+           text-gray-600 hover:bg-gray-100 hover:text-gray-900
+           transition-colors cursor-pointer;
+  }
+  .nav-item.active {
+    @apply bg-brand-50 text-brand-700;
+  }
+
+  /* Dot de risco */
+  .risk-dot {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+  .risk-ok     { @apply bg-green-500; }
+  .risk-warn   { @apply bg-yellow-500; }
+  .risk-danger { @apply bg-red-500; }
+
+  /* Obs crítica */
+  .obs-critica-bar {
+    @apply flex items-start gap-3 p-3 rounded-lg
+           bg-red-50 border border-red-200 text-red-800 text-sm;
+  }
+}
