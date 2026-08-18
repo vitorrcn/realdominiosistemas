@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { garantirInstanciaCompetenciaAtual } from "@/lib/obrigacoes";
 
 // GET /api/obrigacoes/templates/[templateId]/empresas?q=busca
 // Lista todas as empresas ativas, com um flag indicando se já estão
@@ -80,6 +81,12 @@ export async function POST(
         ativa: !!ativa,
       },
     });
+
+    // Ativou o vínculo → já gera a pendência do mês atual, sem depender
+    // de alguém clicar em "Gerar competência do mês" depois.
+    if (vinculo.ativa) {
+      await garantirInstanciaCompetenciaAtual(vinculo.id);
+    }
 
     return NextResponse.json(vinculo);
   } catch (e: any) {

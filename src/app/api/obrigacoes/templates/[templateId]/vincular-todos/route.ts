@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { garantirInstanciaCompetenciaAtual } from "@/lib/obrigacoes";
 
 // POST /api/obrigacoes/templates/[templateId]/vincular-todos
 // Vincula TODOS os clientes ativos de uma vez a essa obrigação.
@@ -29,7 +30,7 @@ export async function POST(
 
     let vinculadas = 0;
     for (const empresa of empresas) {
-      await prisma.obrigacaoEmpresa.upsert({
+      const vinculo = await prisma.obrigacaoEmpresa.upsert({
         where: { empresaId_templateId: { empresaId: empresa.id, templateId: params.templateId } },
         update: { ativa: true },
         create: {
@@ -39,6 +40,9 @@ export async function POST(
           ativa: true,
         },
       });
+      // Já gera a pendência do mês atual pra cada empresa vinculada, sem
+      // depender de alguém clicar em "Gerar competência do mês" depois.
+      await garantirInstanciaCompetenciaAtual(vinculo.id);
       vinculadas++;
     }
 
