@@ -10,19 +10,26 @@ const config: Config = {
     extend: {
       colors: {
         // Cor institucional do sistema — usada em botões primários, links
-        // ativos da sidebar, focus rings, etc. Paleta neutra e profissional;
-        // troque aqui se houver uma cor de marca definida depois.
+        // ativos da sidebar, focus rings, etc. Paleta azul-marinho (Real
+        // Domínio: preto, azul escuro e branco).
         brand: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          200: "#bfdbfe",
-          300: "#93c5fd",
-          400: "#60a5fa",
-          500: "#3b82f6",
-          600: "#2563eb",
-          700: "#1d4ed8",
-          800: "#1e40af",
-          900: "#1e3a8a",
+          50: "#eef2fb",
+          100: "#dce6f7",
+          200: "#b9cdef",
+          300: "#8aa9e2",
+          400: "#5a80d1",
+          500: "#3660bb",
+          600: "#1e429e",
+          700: "#16327b",
+          800: "#0f2359",
+          900: "#0a1938",
+          950: "#050d1f",
+        },
+        // Chrome escuro (sidebar/topbar) — quase preto.
+        ink: {
+          800: "#141a29",
+          900: "#0a0e17",
+          950: "#05070c",
         },
       },
     },

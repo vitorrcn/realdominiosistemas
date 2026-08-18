@@ -69,8 +69,8 @@ export function Topbar() {
   }
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center px-6 gap-4 flex-shrink-0">
-      <h1 className="text-base font-semibold text-gray-900 flex-1">{titulo}</h1>
+    <header className="h-16 bg-ink-900 border-b border-white/10 flex items-center px-6 gap-4 flex-shrink-0">
+      <h1 className="text-base font-semibold text-white flex-1">{titulo}</h1>
 
       {/* Busca global */}
       <div className="relative">

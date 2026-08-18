@@ -22,6 +22,8 @@ export async function GET(
       respDp:         { select: { id: true, nome: true } },
       respSocietario: { select: { id: true, nome: true } },
       respCarteira:   { select: { id: true, nome: true } },
+      respLider:      { select: { id: true, nome: true } },
+      respSupervisor: { select: { id: true, nome: true } },
       fiscal:         true,
       contabil:       true,
       dp:             true,
@@ -154,6 +156,8 @@ export async function PUT(
         respDpId:      body.respDpId      || null,
         respSocietId:  body.respSocietId  || null,
         respCarteiraId:body.respCarteiraId|| null,
+        respLiderId:      body.respLiderId      || null,
+        respSupervisorId: body.respSupervisorId || null,
       },
     });
 
@@ -167,7 +171,9 @@ export async function PUT(
     if (saiuDeIncompleto) {
       if (!empresa.municipio || !empresa.estado) avisos.push("Município/Estado não preenchidos");
       if (!empresa.dataAbertura) avisos.push("Data de abertura não preenchida");
-      if (!empresa.respCarteiraId) avisos.push("Responsável pela carteira (operador) não definido");
+      if (!empresa.respCarteiraId) avisos.push("Operador responsável não definido");
+      if (!empresa.respLiderId) avisos.push("Líder responsável não definido");
+      if (!empresa.respSupervisorId) avisos.push("Supervisor responsável não definido");
       if (!empresa.respFiscalId || !empresa.respContabilId || !empresa.respDpId || !empresa.respSocietId) {
         avisos.push("Nem todos os responsáveis de setor (Fiscal/Contábil/DP/Societário) estão definidos");
       }

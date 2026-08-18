@@ -122,14 +122,15 @@
     @apply text-xs text-gray-400 mt-0.5;
   }
 
-  /* Sidebar item */
+  /* Sidebar item — a sidebar tem fundo escuro (preto), então o item de
+     navegação usa tons claros sobre ele. */
   .nav-item {
     @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg
-           text-gray-600 hover:bg-gray-100 hover:text-gray-900
+           text-gray-300 hover:bg-white/10 hover:text-white
            transition-colors cursor-pointer;
   }
   .nav-item.active {
-    @apply bg-brand-50 text-brand-700;
+    @apply bg-brand-600 text-white;
   }
 
   /* Dot de risco */

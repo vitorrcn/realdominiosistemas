@@ -83,6 +83,8 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
         respDpId:       empresa.respDp?.id ?? "",
         respSocietId:   empresa.respSocietario?.id ?? "",
         respCarteiraId: empresa.respCarteira?.id ?? "",
+        respLiderId:      empresa.respLider?.id ?? "",
+        respSupervisorId: empresa.respSupervisor?.id ?? "",
       });
     }
   }, [empresa, form]);
@@ -107,6 +109,8 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
       respDpId:       form.respDpId       || null,
       respSocietId:   form.respSocietId   || null,
       respCarteiraId: form.respCarteiraId || null,
+      respLiderId:      form.respLiderId      || null,
+      respSupervisorId: form.respSupervisorId || null,
     };
 
     const resultado = await atualizarGeral(payload);
@@ -142,11 +146,13 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
   );
 
   const RESPONSAVEIS = [
+    { key: "respCarteiraId",   label: "Operador responsável" },
+    { key: "respLiderId",      label: "Líder responsável" },
+    { key: "respSupervisorId", label: "Supervisor responsável" },
     { key: "respFiscalId",   label: "Responsável Fiscal" },
     { key: "respContabilId", label: "Responsável Contábil" },
     { key: "respDpId",       label: "Responsável DP" },
     { key: "respSocietId",   label: "Responsável Societário" },
-    { key: "respCarteiraId", label: "Responsável pela carteira (operador)" },
   ];
 
   return (
@@ -279,9 +285,10 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
         </div>
 
         <div className="card space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900">Responsáveis por setor</h2>
+          <h2 className="text-sm font-semibold text-gray-900">Responsáveis</h2>
           <p className="text-xs text-gray-400 -mt-2">
-            É aqui que você vincula a empresa ao operador — use &quot;Responsável pela carteira&quot;.
+            Operador, líder e supervisor são os responsáveis gerais pelo cliente. Os quatro últimos
+            são específicos de cada setor.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {RESPONSAVEIS.map(({ key, label }) => (

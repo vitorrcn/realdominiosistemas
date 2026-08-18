@@ -28,6 +28,8 @@ export default function NovaEmpresaPage() {
     dataAbertura: "",
     dataEntrada: new Date().toISOString().slice(0, 10),
     respCarteiraId: "",
+    respLiderId: "",
+    respSupervisorId: "",
   });
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
@@ -150,17 +152,33 @@ export default function NovaEmpresaPage() {
         </div>
 
         <div className="card space-y-4">
-          <h2 className="text-sm font-semibold text-gray-900">Responsável</h2>
-          <div>
-            <label className="label">Responsável pela carteira (operador)</label>
-            <select className="select" value={form.respCarteiraId} onChange={(e) => set("respCarteiraId", e.target.value)}>
-              <option value="">Não atribuído</option>
-              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Os demais responsáveis (Fiscal, Contábil, DP, Societário) são definidos depois, em &quot;Editar cadastro&quot;.
-            </p>
+          <h2 className="text-sm font-semibold text-gray-900">Responsáveis</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label">Operador responsável</label>
+              <select className="select" value={form.respCarteiraId} onChange={(e) => set("respCarteiraId", e.target.value)}>
+                <option value="">Não atribuído</option>
+                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Líder responsável</label>
+              <select className="select" value={form.respLiderId} onChange={(e) => set("respLiderId", e.target.value)}>
+                <option value="">Não atribuído</option>
+                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Supervisor responsável</label>
+              <select className="select" value={form.respSupervisorId} onChange={(e) => set("respSupervisorId", e.target.value)}>
+                <option value="">Não atribuído</option>
+                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+            </div>
           </div>
+          <p className="text-xs text-gray-400">
+            Os responsáveis por setor (Fiscal, Contábil, DP, Societário) são definidos depois, em &quot;Editar cadastro&quot;.
+          </p>
         </div>
 
         {erro && (

@@ -32,16 +32,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-ink-900 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo / cabeçalho */}
         <div className="text-center mb-8">
           <img
-            src="/logo.jpg"
+            src="/logo.png"
             alt="Grupo Real Domínio"
-            className="mx-auto w-20 h-20 rounded-2xl mb-4 shadow-sm"
+            className="mx-auto w-20 h-20 rounded-2xl mb-4 shadow-sm object-contain bg-white/5"
           />
-          <h1 className="text-xl font-semibold text-gray-900">Sistema de Operações Grupo Real Domínio</h1>
+          <h1 className="text-xl font-semibold text-white">Sistema de Operações Grupo Real Domínio</h1>
         </div>
 
         {/* Card de login */}

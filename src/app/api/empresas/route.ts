@@ -221,6 +221,8 @@ export async function POST(req: NextRequest) {
         dataSaida: body.dataSaida ? new Date(body.dataSaida) : null,
         status: "CADASTRO_INCOMPLETO",
         respCarteiraId: body.respCarteiraId || null,
+        respLiderId: body.respLiderId || null,
+        respSupervisorId: body.respSupervisorId || null,
         // Criar módulos setoriais vazios automaticamente (e já com o
         // regime tributário, se veio da importação por PDF)
         fiscal: { create: { regimeTributario: body.regimeTributario || null } },

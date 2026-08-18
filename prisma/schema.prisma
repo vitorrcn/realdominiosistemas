@@ -44,6 +44,8 @@ model Usuario {
   empresasDp        Empresa[]    @relation("RespDp")
   empresasSociet    Empresa[]    @relation("RespSocietario")
   empresasCarteira  Empresa[]    @relation("RespCarteira")
+  empresasLider     Empresa[]    @relation("RespLider")
+  empresasSupervisor Empresa[]   @relation("RespSupervisor")
   agendaItens       AgendaItem[] @relation("AgendaUsuario")
   agendaCriados     AgendaItem[] @relation("AgendaCriador")
   acessosCriados    AcessoSistema[]
@@ -143,11 +145,16 @@ model Empresa {
   respDpId        String?
   respSocietId    String?
   respCarteiraId  String?
+  respLiderId     String?
+  respSupervisorId String?
   respFiscal      Usuario?      @relation("RespFiscal",     fields: [respFiscalId],   references: [id])
   respContabil    Usuario?      @relation("RespContabil",   fields: [respContabilId], references: [id])
   respDp          Usuario?      @relation("RespDp",         fields: [respDpId],       references: [id])
   respSocietario  Usuario?      @relation("RespSocietario", fields: [respSocietId],   references: [id])
+  // Responsável pela carteira (operador que atende o cliente no dia a dia)
   respCarteira    Usuario?      @relation("RespCarteira",   fields: [respCarteiraId], references: [id])
+  respLider       Usuario?      @relation("RespLider",      fields: [respLiderId],    references: [id])
+  respSupervisor  Usuario?      @relation("RespSupervisor", fields: [respSupervisorId], references: [id])
   fiscal          Fiscal?
   contabil        Contabil?
   dp              Dp?

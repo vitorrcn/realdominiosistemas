@@ -80,12 +80,12 @@ export function Sidebar() {
   const meusSetores: string[] = ((session?.user as any)?.setores ?? []).map((s: any) => s.nome);
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
+    <aside className="w-60 flex-shrink-0 bg-ink-900 border-r border-white/10 flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 h-16 border-b border-gray-200">
-        <img src="/logo.jpg" alt="Grupo Real Domínio" className="w-8 h-8 rounded-lg flex-shrink-0 object-cover" />
+      <div className="flex items-center gap-3 px-5 h-16 border-b border-white/10">
+        <img src="/logo.png" alt="Grupo Real Domínio" className="w-8 h-8 rounded-lg flex-shrink-0 object-contain bg-white/5" />
         <div>
-          <div className="text-sm font-semibold text-gray-900 leading-none">Real Domínio</div>
+          <div className="text-sm font-semibold text-white leading-none">Real Domínio</div>
           <div className="text-xs text-gray-400 mt-0.5">Gestão operacional</div>
         </div>
       </div>
@@ -126,21 +126,21 @@ export function Sidebar() {
       </nav>
 
       {/* Usuário logado */}
-      <div className="p-3 border-t border-gray-200">
+      <div className="p-3 border-t border-white/10">
         <div className="flex items-center gap-3 px-2 py-2">
-          <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-semibold text-brand-700">
+          <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-semibold text-white">
               {(session?.user?.name ?? "?").charAt(0).toUpperCase()}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 truncate">
+            <div className="text-sm font-medium text-white truncate">
               {session?.user?.name}
             </div>
             <div className="text-xs text-gray-400 truncate">{perfil}</div>
           </div>
         </div>
-        <Link href="/api/auth/signout" className="btn btn-sm w-full justify-center mt-2 text-gray-500">
+        <Link href="/api/auth/signout" className="btn btn-sm w-full justify-center mt-2 bg-transparent border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">
           Sair
         </Link>
       </div>
