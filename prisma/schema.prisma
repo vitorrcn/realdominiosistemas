@@ -3,12 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Conexão direta (sem pooling/PgBouncer), usada apenas para migrações —
-  // a Neon/Vercel expõe DATABASE_URL com pooling, que não suporta o
-  // advisory lock que o `prisma migrate` precisa adquirir.
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  // Importante: usar aqui a conexão DIRETA (sem pooling/PgBouncer) do
+  // banco. A URL com pooling que a integração Neon/Vercel expõe por
+  // padrão não suporta o advisory lock que o `prisma migrate` precisa
+  // adquirir (erro P1002), e o campo `directUrl` do Prisma para separar
+  // as duas conexões tem um bug nesta versão (5.10.0) que quebra o
+  // `prisma generate`. Para o volume de uso deste sistema, a conexão
+  // direta atende bem tanto migração quanto runtime.
+  url      = env("DATABASE_URL")
 }
 
 enum PerfilGlobal {
