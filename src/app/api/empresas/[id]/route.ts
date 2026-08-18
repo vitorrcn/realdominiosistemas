@@ -171,7 +171,6 @@ export async function PUT(
     if (saiuDeIncompleto) {
       if (!empresa.municipio || !empresa.estado) avisos.push("Município/Estado não preenchidos");
       if (!empresa.dataAbertura) avisos.push("Data de abertura não preenchida");
-      if (!empresa.respCarteiraId) avisos.push("Operador responsável não definido");
       if (!empresa.respLiderId) avisos.push("Líder responsável não definido");
       if (!empresa.respSupervisorId) avisos.push("Supervisor responsável não definido");
       if (!empresa.respFiscalId || !empresa.respContabilId || !empresa.respDpId || !empresa.respSocietId) {

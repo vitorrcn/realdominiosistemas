@@ -146,7 +146,6 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
   );
 
   const RESPONSAVEIS = [
-    { key: "respCarteiraId",   label: "Operador responsável" },
     { key: "respLiderId",      label: "Líder responsável" },
     { key: "respSupervisorId", label: "Supervisor responsável" },
     { key: "respFiscalId",   label: "Responsável Fiscal" },

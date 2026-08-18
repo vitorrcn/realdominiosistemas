@@ -25,23 +25,50 @@ export async function GET(req: NextRequest) {
   const page         = Math.max(1, Number(searchParams.get("page") || 1));
   const pageSize     = Math.min(200, Number(searchParams.get("pageSize") || 100));
 
-  // Filtro de carteira para operadores
+  // Filtro de carteira para operadores (sem visão geral)
   const restricaoEmpresa = filtroCarteira(user.id, user.perfilGlobal, user.setores);
+
+  // Condições comuns a toda consulta, independente do filtro de carteira
+  const baseObrigEmpresaWhere: Prisma.ObrigacaoEmpresaWhereInput = {
+    ...(empresaId && { empresaId }),
+    ativa: true,
+    ...(setorId && { template: { setorId } }),
+  };
+
+  // Setor de cada obrigação → campo de responsável correspondente na Empresa.
+  // "Minha carteira" usa isso para mostrar as obrigações de cada setor em que
+  // o usuário logado é o responsável (Fiscal/Contábil/DP/Societário) — não
+  // apenas as instâncias atribuídas individualmente a ele.
+  const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" | "respDpId" | "respSocietId"> = {
+    "Fiscal": "respFiscalId",
+    "Contábil": "respContabilId",
+    "Departamento Pessoal": "respDpId",
+    "Societário": "respSocietId",
+  };
 
   const where: Prisma.ObrigacaoInstanciaWhereInput = {
     competencia,
     ...(status && { status }),
-    obrigacaoEmpresa: {
-      ...(empresaId && { empresaId }),
-      ativa: true,
-      empresa: {
-        deletedAt: null,
-        ativo: true,
-        ...(restricaoEmpresa.OR ? { OR: restricaoEmpresa.OR } : {}),
-      },
-      ...(setorId && { template: { setorId } }),
-    },
-    ...(minhaCarteira && { responsavelId: user.id }),
+    ...(minhaCarteira
+      ? {
+          OR: Object.entries(SETOR_RESP_FIELD).map(([nomeSetor, campo]) => ({
+            obrigacaoEmpresa: {
+              ...baseObrigEmpresaWhere,
+              template: { ...(setorId && { setorId }), setor: { nome: nomeSetor } },
+              empresa: { deletedAt: null, ativo: true, [campo]: user.id },
+            },
+          })),
+        }
+      : {
+          obrigacaoEmpresa: {
+            ...baseObrigEmpresaWhere,
+            empresa: {
+              deletedAt: null,
+              ativo: true,
+              ...(restricaoEmpresa.OR ? { OR: restricaoEmpresa.OR } : {}),
+            },
+          },
+        }),
   };
 
   const [total, instancias] = await Promise.all([

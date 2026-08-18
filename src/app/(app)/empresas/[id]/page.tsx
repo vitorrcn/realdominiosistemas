@@ -127,7 +127,6 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
         {/* Responsáveis */}
         <div className="flex flex-wrap gap-4 pt-1">
           {[
-            { label: "Operador",    resp: empresa.respCarteira },
             { label: "Líder",       resp: empresa.respLider },
             { label: "Supervisor",  resp: empresa.respSupervisor },
             { label: "Fiscal",      resp: empresa.respFiscal },
