@@ -3,8 +3,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Conexão direta (sem pooling/PgBouncer), usada apenas para migrações —
+  // a Neon/Vercel expõe DATABASE_URL com pooling, que não suporta o
+  // advisory lock que o `prisma migrate` precisa adquirir.
+  directUrl = env("DIRECT_URL")
 }
 
 enum PerfilGlobal {
