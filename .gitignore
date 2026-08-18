@@ -28,3 +28,8 @@ next-env.d.ts
 /prisma/dev.db-journal
 .vercel
 .env*
+
+# agent skills instalados automaticamente por CLIs (ex.: vercel install)
+.agents/
+.claude/
+skills-lock.json
