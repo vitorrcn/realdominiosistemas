@@ -31,14 +31,20 @@ export async function GET(req: NextRequest) {
     ativo: true,
   };
 
+  // Subcondições que combinam via AND — evita que o OR da busca por texto
+  // colida com o OR do filtro de carteira quando os dois estão ativos.
+  const filtrosAdicionais: Prisma.EmpresaWhereInput[] = [];
+
   if (q) {
-    where.OR = [
-      { razaoSocial: { contains: q, mode: "insensitive" } },
-      { nomeFantasia: { contains: q, mode: "insensitive" } },
-      { cnpj: { contains: q.replace(/\D/g, "") } },
-      { cpf: { contains: q.replace(/\D/g, "") } },
-      { codigoInterno: { contains: q, mode: "insensitive" } },
-    ];
+    filtrosAdicionais.push({
+      OR: [
+        { razaoSocial: { contains: q, mode: "insensitive" } },
+        { nomeFantasia: { contains: q, mode: "insensitive" } },
+        { cnpj: { contains: q.replace(/\D/g, "") } },
+        { cpf: { contains: q.replace(/\D/g, "") } },
+        { codigoInterno: { contains: q, mode: "insensitive" } },
+      ],
+    });
   }
 
   if (status) where.status = status;
@@ -49,13 +55,29 @@ export async function GET(req: NextRequest) {
     where.fiscal = { regimeTributario: regime };
   }
 
-  // Restrição por carteira (operador/líder)
-  if (minhaCarteira || !["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal)) {
+  // Restrição por carteira. "Minha carteira" é sempre pessoal — mostra só
+  // as empresas onde o próprio usuário logado é responsável em algum
+  // setor (Fiscal/Contábil/DP/Societário), independente do perfil dele
+  // (inclusive Diretoria/Coordenador, que normalmente veem tudo). Fora
+  // desse filtro, quem não tem visão geral já fica restrito à própria
+  // carteira por padrão.
+  if (minhaCarteira) {
+    filtrosAdicionais.push({
+      OR: [
+        { respFiscalId: user.id },
+        { respContabilId: user.id },
+        { respDpId: user.id },
+        { respSocietId: user.id },
+        { respLiderId: user.id },
+        { respSupervisorId: user.id },
+      ],
+    });
+  } else if (!["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal)) {
     const restricao = filtroCarteira(user.id, user.perfilGlobal, user.setores);
-    if (restricao.OR) {
-      where.AND = [restricao];
-    }
+    if (restricao.OR) filtrosAdicionais.push(restricao);
   }
+
+  if (filtrosAdicionais.length > 0) where.AND = filtrosAdicionais;
 
   // ── Consulta ──────────────────────────────────────────────────
   try {

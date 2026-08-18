@@ -25,6 +25,8 @@ export async function PUT(
         nome: body.nome !== undefined ? body.nome.trim() : undefined,
         descricao: body.descricao !== undefined ? (body.descricao || null) : undefined,
         ativo: body.ativo !== undefined ? !!body.ativo : undefined,
+        diaVencimento: body.diaVencimento !== undefined ? (body.diaVencimento ? Number(body.diaVencimento) : null) : undefined,
+        vencimentoMesSeguinte: body.vencimentoMesSeguinte !== undefined ? !!body.vencimentoMesSeguinte : undefined,
       },
     });
     return NextResponse.json(template);

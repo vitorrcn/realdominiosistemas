@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
         setorAtualId: setorAtualId || null,
         respAtualId: respAtualId || null,
         respGeralId: respGeralId || user.id,
+        criadoPorId: user.id,
         prazo: prazo ? new Date(prazo) : null,
         observacoes: observacoes || null,
         status: "NAO_INICIADO",

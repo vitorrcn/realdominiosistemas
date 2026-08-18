@@ -19,6 +19,7 @@ export async function GET(
       tipoEvento: { select: { id: true, nome: true } },
       setorAtual: { select: { id: true, nome: true } },
       respAtual: { select: { id: true, nome: true } },
+      criadoPor: { select: { id: true, nome: true } },
       historico: { orderBy: { dataHora: "desc" }, include: { usuario: { select: { nome: true } } } },
       tarefas: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
     },
@@ -95,8 +96,22 @@ export async function DELETE(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (!["DIRETORIA", "COORDENADOR", "LIDER"].includes(user.perfilGlobal))
-    return NextResponse.json({ error: "Sem permissão para excluir eventos" }, { status: 403 });
+
+  const evento = await prisma.evento.findUnique({
+    where: { id: params.id },
+    select: { criadoPorId: true },
+  });
+  if (!evento)
+    return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
+
+  // Diretoria/Coordenador/Líder podem excluir qualquer evento; qualquer
+  // outro usuário só pode excluir os eventos que ele mesmo criou.
+  const podeExcluir =
+    ["DIRETORIA", "COORDENADOR", "LIDER"].includes(user.perfilGlobal) ||
+    evento.criadoPorId === user.id;
+
+  if (!podeExcluir)
+    return NextResponse.json({ error: "Sem permissão para excluir este evento" }, { status: 403 });
 
   await prisma.evento.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
   return NextResponse.json({ ok: true });

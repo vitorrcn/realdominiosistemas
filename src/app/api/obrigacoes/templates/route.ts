@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
       ativo: t.ativo,
       qtdEmpresas: t._count.empresas,
       setor: t.setor ?? undefined,
+      diaVencimento: t.diaVencimento,
+      vencimentoMesSeguinte: t.vencimentoMesSeguinte,
     }))
   );
 }
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sem permissão para criar obrigações" }, { status: 403 });
 
   const body = await req.json();
-  const { setorId, nome, descricao } = body;
+  const { setorId, nome, descricao, diaVencimento, vencimentoMesSeguinte } = body;
 
   if (!setorId || !nome)
     return NextResponse.json({ error: "Setor e nome são obrigatórios" }, { status: 400 });
@@ -65,6 +67,8 @@ export async function POST(req: NextRequest) {
         nome,
         descricao: descricao || null,
         ordem: (ultimo?.ordem ?? 0) + 1,
+        diaVencimento: diaVencimento ? Number(diaVencimento) : null,
+        vencimentoMesSeguinte: !!vencimentoMesSeguinte,
       },
     });
 

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions, filtroCarteira } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusObrigacao, Prisma } from "@prisma/client";
+import { atualizarObrigacoesEmAtraso } from "@/lib/obrigacoes";
 
 // GET /api/obrigacoes?competencia=2025-05&setorId=...&status=...
 export async function GET(req: NextRequest) {
@@ -12,6 +13,10 @@ export async function GET(req: NextRequest) {
 
   const user = session.user as any;
   const { searchParams } = req.nextUrl;
+
+  // Marca como "Em atraso" quem já passou do vencimento configurado no
+  // template — mantém o status em dia toda vez que a tela é carregada.
+  await atualizarObrigacoesEmAtraso();
 
   const hoje = new Date();
   const competencia =
@@ -78,7 +83,7 @@ export async function GET(req: NextRequest) {
       skip: (page - 1) * pageSize,
       take: pageSize,
       orderBy: [
-        { obrigacaoEmpresa: { empresa: { razaoSocial: "asc" } } },
+        { obrigacaoEmpresa: { empresa: { codigoInterno: "asc" } } },
         { obrigacaoEmpresa: { template: { ordem: "asc" } } },
       ],
       include: {

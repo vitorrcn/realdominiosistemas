@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { STATUS_EMPRESA_GERA_OBRIGACAO } from "@/lib/obrigacoes";
 
 // POST /api/obrigacoes/gerar
 // Gera instâncias para uma competência (chamado manualmente ou pelo cron)
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const obrigacoesEmpresas = await prisma.obrigacaoEmpresa.findMany({
     where: {
       ativa: true,
-      empresa: { ativo: true, deletedAt: null, status: { in: ["CADASTRO_INCOMPLETO", "ATIVA", "EM_ATENCAO", "IMPLANTACAO"] } },
+      empresa: { ativo: true, deletedAt: null, status: { in: STATUS_EMPRESA_GERA_OBRIGACAO } },
     },
     include: {
       empresa: { select: { id: true, respFiscalId: true, respContabilId: true, respDpId: true } },

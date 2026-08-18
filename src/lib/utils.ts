@@ -48,3 +48,22 @@ export function diasAte(data: Date | string | null | undefined): number | null {
   hoje.setHours(0, 0, 0, 0);
   return Math.round((d.getTime() - hoje.getTime()) / 86_400_000);
 }
+
+/**
+ * Calcula a data de vencimento de uma obrigação a partir da competência
+ * ("AAAA-MM") e da configuração do template (dia do mês + se vence no mês
+ * seguinte). Retorna null se o template não tem dia de vencimento definido.
+ * Função pura (sem I/O) — usada tanto no servidor quanto no client. Usa
+ * UTC de propósito (mesmo motivo do formatData) — assim o "dia" calculado
+ * é o mesmo independente do fuso de onde o código roda.
+ */
+export function calcularVencimento(
+  competencia: string,
+  diaVencimento: number | null | undefined,
+  vencimentoMesSeguinte: boolean
+): Date | null {
+  if (!diaVencimento) return null;
+  const [ano, mes] = competencia.split("-").map(Number);
+  const mesVencimento = vencimentoMesSeguinte ? mes + 1 : mes; // pode passar de 12 e virar o ano, o Date lida com isso
+  return new Date(Date.UTC(ano, mesVencimento - 1, diaVencimento));
+}

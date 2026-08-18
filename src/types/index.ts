@@ -69,7 +69,12 @@ export interface ObrigacaoComContexto {
   responsavel: { id: string; nome: string } | null;
   obrigacaoEmpresa: {
     empresa: { id: string; razaoSocial: string; codigoInterno: string };
-    template: { nome: string; setor: { nome: string } };
+    template: {
+      nome: string;
+      setor: { nome: string };
+      diaVencimento: number | null;
+      vencimentoMesSeguinte: boolean;
+    };
   };
 }
 

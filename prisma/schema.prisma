@@ -39,6 +39,7 @@ model Usuario {
   obrigacoesResp    ObrigacaoInstancia[]
   tarefasResp       Tarefa[]
   eventosResp       Evento[]
+  eventosCriados    Evento[]     @relation("EventoCriador")
   empresasFiscal    Empresa[]    @relation("RespFiscal")
   empresasContabil  Empresa[]    @relation("RespContabil")
   empresasDp        Empresa[]    @relation("RespDp")
@@ -393,6 +394,7 @@ model Evento {
   respGeralId  String?
   setorAtualId String?
   respAtualId  String?
+  criadoPorId  String?
   dataAbertura DateTime     @default(now())
   prazo        DateTime?
   status       StatusEvento @default(NAO_INICIADO)
@@ -404,6 +406,7 @@ model Evento {
   tipoEvento TipoEvento? @relation(fields: [tipoEventoId], references: [id])
   setorAtual Setor?      @relation(fields: [setorAtualId], references: [id])
   respAtual  Usuario?    @relation(fields: [respAtualId],  references: [id])
+  criadoPor  Usuario?    @relation("EventoCriador", fields: [criadoPorId], references: [id])
   historico  EventoHistorico[]
   tarefas    Tarefa[]
   @@map("eventos")
@@ -476,6 +479,14 @@ model ObrigacaoTemplate {
   ativo     Boolean  @default(true)
   ordem     Int      @default(0)
   createdAt DateTime @default(now())
+  // Dia do mês em que a obrigação vence (1-31). Se vazio, o sistema não
+  // sabe calcular vencimento e nunca marca a instância como "Em atraso"
+  // automaticamente.
+  diaVencimento         Int?
+  // Se true, o vencimento cai no mes SEGUINTE ao da competencia (padrao
+  // pra maioria das obrigacoes fiscais/DP - ex: competencia de julho
+  // vence em agosto). Se false, vence dentro do proprio mes da competencia.
+  vencimentoMesSeguinte Boolean @default(false)
   setor    Setor              @relation(fields: [setorId], references: [id])
   empresas ObrigacaoEmpresa[]
   @@map("obrigacao_templates")

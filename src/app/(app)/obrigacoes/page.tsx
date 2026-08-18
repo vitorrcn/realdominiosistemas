@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { formatCompetencia, competenciaAtual } from "@/lib/utils";
+import { formatCompetencia, competenciaAtual, calcularVencimento, formatData } from "@/lib/utils";
 import { STATUS_OBRIGACAO_LABEL, type ObrigacaoComContexto } from "@/types";
 import { StatusObrigacao } from "@prisma/client";
 
@@ -247,6 +247,19 @@ export default function ObrigacoesPage() {
                         <span className="ml-2 text-xs text-gray-400">
                           {item.obrigacaoEmpresa.template.setor.nome}
                         </span>
+                        {(() => {
+                          const venc = calcularVencimento(
+                            item.competencia,
+                            item.obrigacaoEmpresa.template.diaVencimento,
+                            item.obrigacaoEmpresa.template.vencimentoMesSeguinte
+                          );
+                          if (!venc) return null;
+                          return (
+                            <span className={`ml-2 text-xs ${item.status === "EM_ATRASO" ? "text-red-500 font-medium" : "text-gray-400"}`}>
+                              vence {formatData(venc)}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {/* Responsável */}

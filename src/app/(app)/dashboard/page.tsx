@@ -2,12 +2,17 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatCompetencia } from "@/lib/utils";
+import { atualizarObrigacoesEmAtraso } from "@/lib/obrigacoes";
 import EntradasSaidasClientes from "@/components/dashboard/EntradasSaidasClientes";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const user = session?.user as any;
   const perfil = user?.perfilGlobal ?? "OPERADOR";
+
+  // Mantém o status "Em atraso" em dia mesmo pra quem não visitou a tela
+  // de Obrigações — assim o card do dashboard sempre reflete a realidade.
+  await atualizarObrigacoesEmAtraso();
 
   const hoje = new Date();
   const competencia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;

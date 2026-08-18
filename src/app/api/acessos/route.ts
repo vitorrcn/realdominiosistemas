@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
         ? { empresa: { [respCampo]: user.id } }
         : {}),
     },
-    orderBy: [{ empresa: { razaoSocial: "asc" } }, { nomeSistema: "asc" }],
+    orderBy: [{ empresa: { codigoInterno: "asc" } }, { nomeSistema: "asc" }],
     include: {
       empresa: { select: { id: true, codigoInterno: true, razaoSocial: true } },
     },

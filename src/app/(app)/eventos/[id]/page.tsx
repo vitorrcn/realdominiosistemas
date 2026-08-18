@@ -1,18 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { BadgeEvento } from "@/components/ui/StatusBadge";
 import { STATUS_EVENTO_LABEL } from "@/types";
 import { formatData } from "@/lib/utils";
 
 export default function EventoDetalhePage({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [evento, setEvento] = useState<any>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [setores, setSetores] = useState<{ id: string; nome: string }[]>([]);
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   const [form, setForm] = useState<any>(null);
@@ -70,15 +75,43 @@ export default function EventoDetalhePage({ params }: { params: { id: string } }
     setTimeout(() => setMsg(null), 3000);
   }
 
+  async function excluir() {
+    if (!confirm("Excluir este evento? Essa ação não pode ser desfeita.")) return;
+    setExcluindo(true);
+    const res = await fetch(`/api/eventos/${params.id}`, { method: "DELETE" });
+    setExcluindo(false);
+    if (res.ok) {
+      router.push("/eventos");
+    } else {
+      const j = await res.json().catch(() => ({}));
+      alert(j.error ?? "Erro ao excluir evento.");
+    }
+  }
+
   if (carregando || !form) return <div className="text-center py-12 text-gray-400">Carregando...</div>;
   if (erro || !evento) return <div className="card text-center py-12 text-red-500">{erro ?? "Evento não encontrado"}</div>;
+
+  const perfil = (session?.user as any)?.perfilGlobal ?? "";
+  const meuId = (session?.user as any)?.id;
+  const podeExcluir =
+    ["DIRETORIA", "COORDENADOR", "LIDER"].includes(perfil) ||
+    evento.criadoPor?.id === meuId;
 
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <Link href="/eventos" className="hover:text-gray-900">Eventos</Link>
         <span>/</span>
-        <span className="text-gray-900 truncate">{evento.tipoEvento?.nome ?? "Evento"}</span>
+        <span className="text-gray-900 truncate flex-1">{evento.tipoEvento?.nome ?? "Evento"}</span>
+        {podeExcluir && (
+          <button
+            onClick={excluir}
+            disabled={excluindo}
+            className="text-xs text-red-500 hover:text-red-700 hover:underline flex-shrink-0"
+          >
+            {excluindo ? "Excluindo..." : "Excluir evento"}
+          </button>
+        )}
       </div>
 
       {msg && (
