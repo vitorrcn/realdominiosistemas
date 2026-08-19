@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+
+// Setor da obrigação → campo de responsável correspondente na Empresa.
+// O filtro de "carteira" desta planilha precisa olhar o responsável do
+// MESMO setor da obrigação (ex.: obrigação Contábil → respContabilId) —
+// não um campo genérico de "operador responsável" desconectado do setor.
+const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" | "respDpId" | "respSocietId"> = {
+  "Fiscal": "respFiscalId",
+  "Contábil": "respContabilId",
+  "Departamento Pessoal": "respDpId",
+  "Societário": "respSocietId",
+};
 
 function competenciaMaisMeses(base: string, delta: number): string {
   const [ano, mes] = base.split("-").map(Number);
@@ -38,16 +50,27 @@ export async function GET(
 
     const template = await prisma.obrigacaoTemplate.findUnique({
       where: { id: params.templateId },
-      select: { id: true, nome: true, setorId: true },
+      select: { id: true, nome: true, setorId: true, setor: { select: { nome: true } } },
     });
     if (!template)
       return NextResponse.json({ error: "Obrigação não encontrada" }, { status: 404 });
+
+    // Campo de responsável do setor desta obrigação (ex.: Contábil → respContabilId).
+    const campoResp = SETOR_RESP_FIELD[template.setor.nome];
+
+    const empresaWhere: Prisma.EmpresaWhereInput = {};
+    if (carteiraId) {
+      // Se o setor da obrigação tem um campo de responsável dedicado, filtra
+      // por ele; senão cai pro campo genérico (obrigações sem setor mapeado).
+      if (campoResp) empresaWhere[campoResp] = carteiraId;
+      else empresaWhere.respCarteiraId = carteiraId;
+    }
 
     const vinculos = await prisma.obrigacaoEmpresa.findMany({
       where: {
         templateId: params.templateId,
         ativa: true,
-        ...(carteiraId && { empresa: { respCarteiraId: carteiraId } }),
+        ...(carteiraId && { empresa: empresaWhere }),
       },
       include: {
         empresa: { select: { id: true, codigoInterno: true, razaoSocial: true, respCarteiraId: true } },
