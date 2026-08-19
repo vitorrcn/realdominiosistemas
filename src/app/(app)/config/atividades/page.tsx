@@ -8,6 +8,8 @@ interface Atividade {
   nome: string;
   descricao: string | null;
   exigeCliente: boolean;
+  exigeQuantidade: boolean;
+  unidadeQuantidade: string | null;
   ativo: boolean;
   ordem: number;
   _count: { registros: number };
@@ -20,11 +22,15 @@ export default function AtividadesPage() {
 
   const [novoNome, setNovoNome] = useState("");
   const [novoExigeCliente, setNovoExigeCliente] = useState(false);
+  const [novoExigeQuantidade, setNovoExigeQuantidade] = useState(false);
+  const [novaUnidade, setNovaUnidade] = useState("");
   const [criando, setCriando] = useState(false);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
   const [exigeClienteEdicao, setExigeClienteEdicao] = useState(false);
+  const [exigeQuantidadeEdicao, setExigeQuantidadeEdicao] = useState(false);
+  const [unidadeEdicao, setUnidadeEdicao] = useState("");
 
   const buscar = useCallback(async () => {
     setCarregando(true);
@@ -43,12 +49,19 @@ export default function AtividadesPage() {
     const res = await fetch("/api/atividades", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: novoNome.trim(), exigeCliente: novoExigeCliente }),
+      body: JSON.stringify({
+        nome: novoNome.trim(),
+        exigeCliente: novoExigeCliente,
+        exigeQuantidade: novoExigeQuantidade,
+        unidadeQuantidade: novoExigeQuantidade ? novaUnidade.trim() : null,
+      }),
     });
     setCriando(false);
     if (res.ok) {
       setNovoNome("");
       setNovoExigeCliente(false);
+      setNovoExigeQuantidade(false);
+      setNovaUnidade("");
       buscar();
     } else {
       const j = await res.json().catch(() => ({}));
@@ -61,7 +74,12 @@ export default function AtividadesPage() {
     const res = await fetch(`/api/atividades/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeEdicao.trim(), exigeCliente: exigeClienteEdicao }),
+      body: JSON.stringify({
+        nome: nomeEdicao.trim(),
+        exigeCliente: exigeClienteEdicao,
+        exigeQuantidade: exigeQuantidadeEdicao,
+        unidadeQuantidade: exigeQuantidadeEdicao ? unidadeEdicao.trim() : null,
+      }),
     });
     if (res.ok) { setEditandoId(null); buscar(); }
     else {
@@ -90,7 +108,8 @@ export default function AtividadesPage() {
       <p className="text-sm text-gray-500">
         Essa lista alimenta o &quot;Registro de horas&quot; — cada usuário escolhe uma dessas atividades ao
         apontar o que fez no dia. Marque &quot;Exige cliente&quot; pras atividades que precisam dizer pra
-        qual cliente o trabalho foi feito.
+        qual cliente o trabalho foi feito, e &quot;Exige quantidade&quot; pras que precisam de um número
+        (ex.: quantas notas emitidas, quantos processos abertos).
       </p>
 
       <form onSubmit={criar} className="card space-y-3">
@@ -104,10 +123,20 @@ export default function AtividadesPage() {
             {criando ? "Adicionando..." : "Adicionar"}
           </button>
         </div>
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input type="checkbox" checked={novoExigeCliente} onChange={(e) => setNovoExigeCliente(e.target.checked)} />
-          Exige informar o cliente
-        </label>
+        <div className="flex items-center gap-4 flex-wrap">
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={novoExigeCliente} onChange={(e) => setNovoExigeCliente(e.target.checked)} />
+            Exige informar o cliente
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={novoExigeQuantidade} onChange={(e) => setNovoExigeQuantidade(e.target.checked)} />
+            Exige informar uma quantidade
+          </label>
+          {novoExigeQuantidade && (
+            <input className="input w-48 text-sm" placeholder="Unidade (ex: notas)"
+              value={novaUnidade} onChange={(e) => setNovaUnidade(e.target.value)} />
+          )}
+        </div>
       </form>
 
       {erro && (
@@ -128,11 +157,19 @@ export default function AtividadesPage() {
                 {editandoId === a.id ? (
                   <div className="space-y-2">
                     <input className="input text-sm" value={nomeEdicao} onChange={(e) => setNomeEdicao(e.target.value)} autoFocus />
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4 flex-wrap">
                       <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                         <input type="checkbox" checked={exigeClienteEdicao} onChange={(e) => setExigeClienteEdicao(e.target.checked)} />
                         Exige cliente
                       </label>
+                      <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked={exigeQuantidadeEdicao} onChange={(e) => setExigeQuantidadeEdicao(e.target.checked)} />
+                        Exige quantidade
+                      </label>
+                      {exigeQuantidadeEdicao && (
+                        <input className="input w-40 text-xs" placeholder="Unidade (ex: notas)"
+                          value={unidadeEdicao} onChange={(e) => setUnidadeEdicao(e.target.value)} />
+                      )}
                       <div className="flex gap-3 ml-auto">
                         <button onClick={() => salvarEdicao(a.id)} className="text-xs text-brand-600 hover:underline">Salvar</button>
                         <button onClick={() => setEditandoId(null)} className="text-xs text-gray-400 hover:underline">Cancelar</button>
@@ -144,10 +181,21 @@ export default function AtividadesPage() {
                     <span className={`flex-1 text-sm ${a.ativo ? "text-gray-800" : "text-gray-400 line-through"}`}>
                       {a.nome}
                       {a.exigeCliente && <span className="ml-2 badge badge-blue text-[10px]">exige cliente</span>}
+                      {a.exigeQuantidade && (
+                        <span className="ml-2 badge badge-blue text-[10px]">
+                          exige quantidade{a.unidadeQuantidade ? ` (${a.unidadeQuantidade})` : ""}
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs text-gray-400">{a._count.registros} registro(s)</span>
                     <button
-                      onClick={() => { setEditandoId(a.id); setNomeEdicao(a.nome); setExigeClienteEdicao(a.exigeCliente); }}
+                      onClick={() => {
+                        setEditandoId(a.id);
+                        setNomeEdicao(a.nome);
+                        setExigeClienteEdicao(a.exigeCliente);
+                        setExigeQuantidadeEdicao(a.exigeQuantidade);
+                        setUnidadeEdicao(a.unidadeQuantidade ?? "");
+                      }}
                       className="text-xs text-gray-500 hover:underline"
                     >
                       Editar

@@ -33,7 +33,7 @@ export async function PUT(
     return NextResponse.json({ error: "Sem permissão pra editar esse registro" }, { status: 403 });
 
   const body = await req.json();
-  const { atividadeId, empresaId, data, horaInicio, horaFim, observacao } = body;
+  const { atividadeId, empresaId, data, horaInicio, horaFim, quantidade, observacao } = body;
 
   const dataFinal = data || existente.data.toISOString().slice(0, 10);
   const horaInicioFinal = horaInicio || existente.horaInicio.toISOString().slice(11, 16);
@@ -47,6 +47,10 @@ export async function PUT(
   const empresaIdFinal = empresaId !== undefined ? (empresaId || null) : existente.empresaId;
   if (atividade.exigeCliente && !empresaIdFinal)
     return NextResponse.json({ error: `A atividade "${atividade.nome}" exige informar o cliente` }, { status: 400 });
+
+  const quantidadeFinal = quantidade !== undefined ? quantidade : existente.quantidade;
+  if (atividade.exigeQuantidade && !(Number(quantidadeFinal) > 0))
+    return NextResponse.json({ error: `A atividade "${atividade.nome}" exige informar a quantidade` }, { status: 400 });
 
   const inicio = combinarDataHora(dataFinal, horaInicioFinal);
   const fim = combinarDataHora(dataFinal, horaFimFinal);
@@ -79,10 +83,11 @@ export async function PUT(
       data: apenasData(dataFinal),
       horaInicio: inicio,
       horaFim: fim,
+      quantidade: atividade.exigeQuantidade ? Number(quantidadeFinal) : null,
       observacao: observacao !== undefined ? (observacao || null) : undefined,
     },
     include: {
-      atividade: { select: { id: true, nome: true, exigeCliente: true } },
+      atividade: { select: { id: true, nome: true, exigeCliente: true, exigeQuantidade: true, unidadeQuantidade: true } },
       empresa: { select: { id: true, codigoInterno: true, razaoSocial: true } },
     },
   });

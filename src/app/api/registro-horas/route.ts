@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     where,
     orderBy: [{ data: "desc" }, { horaInicio: "asc" }],
     include: {
-      atividade: { select: { id: true, nome: true, exigeCliente: true } },
+      atividade: { select: { id: true, nome: true, exigeCliente: true, exigeQuantidade: true, unidadeQuantidade: true } },
       empresa: { select: { id: true, codigoInterno: true, razaoSocial: true } },
     },
   });
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   const body = await req.json();
-  const { atividadeId, empresaId, data, horaInicio, horaFim, observacao } = body;
+  const { atividadeId, empresaId, data, horaInicio, horaFim, quantidade, observacao } = body;
 
   if (!atividadeId || !data || !horaInicio || !horaFim)
     return NextResponse.json({ error: "Atividade, data e horário são obrigatórios" }, { status: 400 });
@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
 
   if (atividade.exigeCliente && !empresaId)
     return NextResponse.json({ error: `A atividade "${atividade.nome}" exige informar o cliente` }, { status: 400 });
+
+  if (atividade.exigeQuantidade && !(Number(quantidade) > 0))
+    return NextResponse.json({ error: `A atividade "${atividade.nome}" exige informar a quantidade` }, { status: 400 });
 
   const inicio = combinarDataHora(data, horaInicio);
   const fim = combinarDataHora(data, horaFim);
@@ -117,10 +120,11 @@ export async function POST(req: NextRequest) {
       data: apenasData(data),
       horaInicio: inicio,
       horaFim: fim,
+      quantidade: atividade.exigeQuantidade ? Number(quantidade) : null,
       observacao: observacao || null,
     },
     include: {
-      atividade: { select: { id: true, nome: true, exigeCliente: true } },
+      atividade: { select: { id: true, nome: true, exigeCliente: true, exigeQuantidade: true, unidadeQuantidade: true } },
       empresa: { select: { id: true, codigoInterno: true, razaoSocial: true } },
     },
   });

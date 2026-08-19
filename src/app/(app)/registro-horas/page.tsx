@@ -9,6 +9,8 @@ interface Atividade {
   nome: string;
   descricao: string | null;
   exigeCliente: boolean;
+  exigeQuantidade: boolean;
+  unidadeQuantidade: string | null;
 }
 
 interface Registro {
@@ -16,8 +18,9 @@ interface Registro {
   data: string;
   horaInicio: string;
   horaFim: string;
+  quantidade: number | null;
   observacao: string | null;
-  atividade: { id: string; nome: string; exigeCliente: boolean };
+  atividade: { id: string; nome: string; exigeCliente: boolean; exigeQuantidade: boolean; unidadeQuantidade: string | null };
   empresa: { id: string; codigoInterno: string; razaoSocial: string } | null;
 }
 
@@ -57,7 +60,7 @@ export default function RegistroHorasPage() {
   const [salvando, setSalvando] = useState(false);
 
   const [form, setForm] = useState({
-    atividadeId: "", empresaId: "", horaInicio: "", horaFim: "", observacao: "",
+    atividadeId: "", empresaId: "", horaInicio: "", horaFim: "", quantidade: "", observacao: "",
   });
   const [buscaEmpresa, setBuscaEmpresa] = useState("");
   const [resultadosEmpresa, setResultadosEmpresa] = useState<any[]>([]);
@@ -88,7 +91,7 @@ export default function RegistroHorasPage() {
   const atividadeEscolhida = atividades.find((a) => a.id === form.atividadeId);
 
   function abrirNovo() {
-    setForm({ atividadeId: "", empresaId: "", horaInicio: "", horaFim: "", observacao: "" });
+    setForm({ atividadeId: "", empresaId: "", horaInicio: "", horaFim: "", quantidade: "", observacao: "" });
     setEmpresaEscolhida(null);
     setBuscaEmpresa("");
     setEditandoId(null);
@@ -102,6 +105,7 @@ export default function RegistroHorasPage() {
       empresaId: r.empresa?.id ?? "",
       horaInicio: horaLocal(r.horaInicio),
       horaFim: horaLocal(r.horaFim),
+      quantidade: r.quantidade != null ? String(r.quantidade) : "",
       observacao: r.observacao ?? "",
     });
     setEmpresaEscolhida(r.empresa);
@@ -118,6 +122,10 @@ export default function RegistroHorasPage() {
       setErro(`A atividade "${atividadeEscolhida.nome}" exige informar o cliente.`);
       return;
     }
+    if (atividadeEscolhida?.exigeQuantidade && !(Number(form.quantidade) > 0)) {
+      setErro(`A atividade "${atividadeEscolhida.nome}" exige informar a quantidade.`);
+      return;
+    }
     setSalvando(true);
     const payload = {
       atividadeId: form.atividadeId,
@@ -125,6 +133,7 @@ export default function RegistroHorasPage() {
       data,
       horaInicio: form.horaInicio,
       horaFim: form.horaFim,
+      quantidade: atividadeEscolhida?.exigeQuantidade ? Number(form.quantidade) : null,
       observacao: form.observacao || null,
     };
     const res = editandoId
@@ -192,6 +201,11 @@ export default function RegistroHorasPage() {
                       <span className="font-mono">{r.empresa.codigoInterno}</span> — {r.empresa.razaoSocial}
                     </div>
                   )}
+                  {r.quantidade != null && (
+                    <div className="text-xs text-gray-400">
+                      {r.quantidade} {r.atividade.unidadeQuantidade || "unidade(s)"}
+                    </div>
+                  )}
                   {r.observacao && <div className="text-xs text-gray-400 italic">{r.observacao}</div>}
                 </div>
                 <span className="badge badge-gray flex-shrink-0">{formatarDuracao(minutos(r))}</span>
@@ -253,6 +267,16 @@ export default function RegistroHorasPage() {
                   onChange={(e) => setForm((p) => ({ ...p, horaFim: e.target.value }))} />
               </div>
             </div>
+
+            {atividadeEscolhida?.exigeQuantidade && (
+              <div>
+                <label className="label">
+                  Quantidade {atividadeEscolhida.unidadeQuantidade ? `(${atividadeEscolhida.unidadeQuantidade})` : ""}
+                </label>
+                <input className="input" type="number" min={1} step={1} value={form.quantidade} required
+                  onChange={(e) => setForm((p) => ({ ...p, quantidade: e.target.value }))} />
+              </div>
+            )}
 
             <div>
               <label className="label">Observação (opcional)</label>

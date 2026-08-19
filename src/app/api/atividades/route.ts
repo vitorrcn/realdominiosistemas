@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
     where: todos ? {} : { ativo: true },
     orderBy: [{ ordem: "asc" }, { nome: "asc" }],
     select: todos
-      ? { id: true, nome: true, descricao: true, exigeCliente: true, ativo: true, ordem: true, _count: { select: { registros: true } } }
-      : { id: true, nome: true, descricao: true, exigeCliente: true },
+      ? { id: true, nome: true, descricao: true, exigeCliente: true, exigeQuantidade: true, unidadeQuantidade: true, ativo: true, ordem: true, _count: { select: { registros: true } } }
+      : { id: true, nome: true, descricao: true, exigeCliente: true, exigeQuantidade: true, unidadeQuantidade: true },
   });
 
   return NextResponse.json(atividades);
@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
         nome: body.nome.trim(),
         descricao: body.descricao || null,
         exigeCliente: !!body.exigeCliente,
+        exigeQuantidade: !!body.exigeQuantidade,
+        unidadeQuantidade: body.unidadeQuantidade?.trim() || null,
         ordem: (ultima?.ordem ?? 0) + 1,
       },
     });

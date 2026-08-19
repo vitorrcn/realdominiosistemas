@@ -59,7 +59,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Acesso rápido */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <a href="/empresas" className="card hover:border-brand-200 transition-colors group">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center group-hover:bg-brand-100 transition-colors">
@@ -101,6 +101,22 @@ export default async function DashboardPage() {
             </div>
           </div>
         </a>
+
+        {perfil === "DIRETORIA" && (
+          <a href="/registro-horas/relatorios" className="card hover:border-purple-200 transition-colors group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-900">Horas da equipe</div>
+                <div className="text-xs text-gray-400">Relatórios de registro de horas</div>
+              </div>
+            </div>
+          </a>
+        )}
       </div>
 
       {perfil === "DIRETORIA" && (

@@ -25,6 +25,8 @@ export async function PUT(
         nome: body.nome !== undefined ? body.nome.trim() : undefined,
         descricao: body.descricao !== undefined ? (body.descricao || null) : undefined,
         exigeCliente: body.exigeCliente !== undefined ? !!body.exigeCliente : undefined,
+        exigeQuantidade: body.exigeQuantidade !== undefined ? !!body.exigeQuantidade : undefined,
+        unidadeQuantidade: body.unidadeQuantidade !== undefined ? (body.unidadeQuantidade?.trim() || null) : undefined,
         ativo: body.ativo !== undefined ? !!body.ativo : undefined,
       },
     });

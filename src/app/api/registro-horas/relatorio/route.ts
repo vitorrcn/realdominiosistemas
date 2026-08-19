@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     },
     include: {
       usuario: { select: { id: true, nome: true } },
-      atividade: { select: { id: true, nome: true } },
+      atividade: { select: { id: true, nome: true, unidadeQuantidade: true } },
       empresa: { select: { id: true, codigoInterno: true, razaoSocial: true } },
     },
     orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
@@ -56,8 +56,8 @@ export async function GET(req: NextRequest) {
   }>();
   // ── Agregação por operador + atividade ──────────────────────────────
   const porOperadorAtividadeMap = new Map<string, {
-    usuarioId: string; nomeUsuario: string; atividadeId: string; nomeAtividade: string;
-    totalMinutos: number; qtdRegistros: number;
+    usuarioId: string; nomeUsuario: string; atividadeId: string; nomeAtividade: string; unidadeQuantidade: string | null;
+    totalMinutos: number; qtdRegistros: number; totalQuantidade: number | null;
   }>();
 
   for (const r of registros) {
@@ -76,13 +76,14 @@ export async function GET(req: NextRequest) {
     if (!porOperadorAtividadeMap.has(chaveOA)) {
       porOperadorAtividadeMap.set(chaveOA, {
         usuarioId: r.usuarioId, nomeUsuario: r.usuario.nome,
-        atividadeId: r.atividadeId, nomeAtividade: r.atividade.nome,
-        totalMinutos: 0, qtdRegistros: 0,
+        atividadeId: r.atividadeId, nomeAtividade: r.atividade.nome, unidadeQuantidade: r.atividade.unidadeQuantidade,
+        totalMinutos: 0, qtdRegistros: 0, totalQuantidade: r.quantidade != null ? 0 : null,
       });
     }
     const oa = porOperadorAtividadeMap.get(chaveOA)!;
     oa.totalMinutos += minutos;
     oa.qtdRegistros += 1;
+    if (r.quantidade != null) oa.totalQuantidade = (oa.totalQuantidade ?? 0) + r.quantidade;
   }
 
   const porOperador = Array.from(porOperadorMap.values())
@@ -102,11 +103,34 @@ export async function GET(req: NextRequest) {
       nomeUsuario: oa.nomeUsuario,
       atividadeId: oa.atividadeId,
       nomeAtividade: oa.nomeAtividade,
+      unidadeQuantidade: oa.unidadeQuantidade,
       qtdRegistros: oa.qtdRegistros,
       totalHoras: Math.round((oa.totalMinutos / 60) * 100) / 100,
       mediaMinutosPorRegistro: Math.round(oa.totalMinutos / oa.qtdRegistros),
+      totalQuantidade: oa.totalQuantidade,
     }))
     .sort((a, b) => a.nomeUsuario.localeCompare(b.nomeUsuario) || a.nomeAtividade.localeCompare(b.nomeAtividade));
+
+  // ── Comparativo por atividade: mesmos dados de porOperadorAtividade,
+  // agrupados por atividade e com os operadores ordenados por total de
+  // horas (do maior pro menor) — pra comparar quem gasta mais/menos tempo
+  // na mesma tarefa.
+  const porAtividadeMap = new Map<string, {
+    atividadeId: string; nomeAtividade: string;
+    operadores: { usuarioId: string; nome: string; totalHoras: number; qtdRegistros: number; mediaMinutosPorRegistro: number; totalQuantidade: number | null }[];
+  }>();
+  for (const oa of porOperadorAtividade) {
+    if (!porAtividadeMap.has(oa.atividadeId)) {
+      porAtividadeMap.set(oa.atividadeId, { atividadeId: oa.atividadeId, nomeAtividade: oa.nomeAtividade, operadores: [] });
+    }
+    porAtividadeMap.get(oa.atividadeId)!.operadores.push({
+      usuarioId: oa.usuarioId, nome: oa.nomeUsuario, totalHoras: oa.totalHoras,
+      qtdRegistros: oa.qtdRegistros, mediaMinutosPorRegistro: oa.mediaMinutosPorRegistro, totalQuantidade: oa.totalQuantidade,
+    });
+  }
+  const porAtividade = Array.from(porAtividadeMap.values())
+    .map((a) => ({ ...a, operadores: a.operadores.sort((x, y) => y.totalHoras - x.totalHoras) }))
+    .sort((a, b) => a.nomeAtividade.localeCompare(b.nomeAtividade));
 
   if (formato === "excel") {
     const wb = XLSX.utils.book_new();
@@ -126,6 +150,7 @@ export async function GET(req: NextRequest) {
       "Qtd. registros": oa.qtdRegistros,
       "Total de horas": oa.totalHoras,
       "Média por registro (min)": oa.mediaMinutosPorRegistro,
+      [`Quantidade total${oa.unidadeQuantidade ? ` (${oa.unidadeQuantidade})` : ""}`]: oa.totalQuantidade ?? "",
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaOperadorAtividade), "Por operador e atividade");
 
@@ -137,6 +162,7 @@ export async function GET(req: NextRequest) {
       "Início": r.horaInicio.toISOString().slice(11, 16),
       "Fim": r.horaFim.toISOString().slice(11, 16),
       "Duração (min)": Math.round((r.horaFim.getTime() - r.horaInicio.getTime()) / 60000),
+      "Quantidade": r.quantidade ?? "",
       "Observação": r.observacao ?? "",
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaDetalhe), "Registros detalhados");
@@ -151,5 +177,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ de, ate, porOperador, porOperadorAtividade, totalRegistros: registros.length });
+  return NextResponse.json({ de, ate, porOperador, porOperadorAtividade, porAtividade, totalRegistros: registros.length });
 }

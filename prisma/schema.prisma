@@ -638,6 +638,12 @@ model Atividade {
   // Se true, todo registro dessa atividade precisa informar qual cliente
   // (empresa) ela foi feita para.
   exigeCliente Boolean  @default(false)
+  // Se true, todo registro dessa atividade precisa informar uma
+  // quantidade (ex.: 12 notas emitidas, 5 processos abertos).
+  exigeQuantidade   Boolean @default(false)
+  // Rotulo do que a quantidade representa (ex.: "notas", "processos").
+  // Opcional - so faz sentido quando exigeQuantidade e true.
+  unidadeQuantidade String?
   ativo        Boolean  @default(true)
   ordem        Int      @default(0)
   createdAt    DateTime @default(now())
@@ -655,6 +661,7 @@ model RegistroAtividade {
   data        DateTime
   horaInicio  DateTime
   horaFim     DateTime
+  quantidade  Int?
   observacao  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

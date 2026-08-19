@@ -12,14 +12,19 @@ interface PorOperador {
   mediaHorasPorDia: number;
 }
 
-interface PorOperadorAtividade {
+interface OperadorNaAtividade {
   usuarioId: string;
-  nomeUsuario: string;
+  nome: string;
+  totalHoras: number;
+  qtdRegistros: number;
+  mediaMinutosPorRegistro: number;
+  totalQuantidade: number | null;
+}
+
+interface PorAtividade {
   atividadeId: string;
   nomeAtividade: string;
-  qtdRegistros: number;
-  totalHoras: number;
-  mediaMinutosPorRegistro: number;
+  operadores: OperadorNaAtividade[];
 }
 
 function primeiroDiaDoMes(): string {
@@ -47,9 +52,9 @@ export default function RelatorioHorasPage() {
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
   const [atividades, setAtividades] = useState<{ id: string; nome: string }[]>([]);
   const [porOperador, setPorOperador] = useState<PorOperador[]>([]);
-  const [porOperadorAtividade, setPorOperadorAtividade] = useState<PorOperadorAtividade[]>([]);
+  const [porAtividade, setPorAtividade] = useState<PorAtividade[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [operadorFiltrado, setOperadorFiltrado] = useState<string | null>(null);
+  const [operadorDestacado, setOperadorDestacado] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/usuarios").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
@@ -65,7 +70,7 @@ export default function RelatorioHorasPage() {
     if (res.ok) {
       const json = await res.json();
       setPorOperador(json.porOperador);
-      setPorOperadorAtividade(json.porOperadorAtividade);
+      setPorAtividade(json.porAtividade);
     }
     setCarregando(false);
   }, [de, ate, usuarioId, atividadeId]);
@@ -78,10 +83,6 @@ export default function RelatorioHorasPage() {
     if (atividadeId) params.set("atividadeId", atividadeId);
     window.location.href = `/api/registro-horas/relatorio?${params}`;
   }
-
-  const detalheAtividades = operadorFiltrado
-    ? porOperadorAtividade.filter((oa) => oa.usuarioId === operadorFiltrado)
-    : porOperadorAtividade;
 
   return (
     <div className="space-y-4">
@@ -107,7 +108,7 @@ export default function RelatorioHorasPage() {
         </div>
         <div>
           <label className="label">Operador</label>
-          <select className="select text-sm w-48" value={usuarioId} onChange={(e) => { setUsuarioId(e.target.value); setOperadorFiltrado(null); }}>
+          <select className="select text-sm w-48" value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
             <option value="">Todos</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
@@ -146,8 +147,9 @@ export default function RelatorioHorasPage() {
                   {porOperador.map((o) => (
                     <tr
                       key={o.usuarioId}
-                      onClick={() => setOperadorFiltrado(operadorFiltrado === o.usuarioId ? null : o.usuarioId)}
-                      className={operadorFiltrado === o.usuarioId ? "bg-brand-50" : ""}
+                      onClick={() => setOperadorDestacado(operadorDestacado === o.usuarioId ? null : o.usuarioId)}
+                      className={operadorDestacado === o.usuarioId ? "bg-brand-50" : ""}
+                      title="Clique pra destacar esse operador no comparativo por atividade, abaixo"
                     >
                       <td className="font-medium text-gray-900">{o.nome}</td>
                       <td className="text-right">{o.diasComRegistro}</td>
@@ -163,40 +165,54 @@ export default function RelatorioHorasPage() {
 
           <div className="card !p-0 overflow-hidden">
             <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-gray-600 uppercase">
-                Tempo médio por atividade {operadorFiltrado && "— " + porOperador.find((o) => o.usuarioId === operadorFiltrado)?.nome}
-              </h3>
-              {operadorFiltrado && (
-                <button onClick={() => setOperadorFiltrado(null)} className="text-xs text-brand-600 hover:underline">
-                  Ver todos
-                </button>
-              )}
+              <h3 className="text-xs font-semibold text-gray-600 uppercase">Comparativo por atividade</h3>
+              <p className="text-[11px] text-gray-400">
+                Quanto tempo cada operador gastou na mesma atividade, do maior pro menor.
+                {operadorDestacado && " Clique no operador destacado acima de novo pra tirar o destaque."}
+              </p>
             </div>
-            {detalheAtividades.length === 0 ? (
+            {porAtividade.length === 0 ? (
               <p className="text-center py-8 text-gray-400 text-sm">Nenhum registro no período.</p>
             ) : (
-              <table className="table-auto-fixed">
-                <thead>
-                  <tr>
-                    <th>Operador</th>
-                    <th>Atividade</th>
-                    <th className="text-right">Qtd. registros</th>
-                    <th className="text-right">Total de horas</th>
-                    <th className="text-right">Média por registro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detalheAtividades.map((oa) => (
-                    <tr key={`${oa.usuarioId}::${oa.atividadeId}`}>
-                      <td className="text-gray-700">{oa.nomeUsuario}</td>
-                      <td className="text-gray-900">{oa.nomeAtividade}</td>
-                      <td className="text-right">{oa.qtdRegistros}</td>
-                      <td className="text-right font-semibold">{formatarMin(oa.totalHoras * 60)}</td>
-                      <td className="text-right">{formatarMin(oa.mediaMinutosPorRegistro)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="divide-y divide-gray-100">
+                {porAtividade.map((a) => {
+                  const maxHoras = Math.max(...a.operadores.map((o) => o.totalHoras), 0.01);
+                  return (
+                    <div key={a.atividadeId} className="px-4 py-3">
+                      <div className="text-sm font-medium text-gray-900 mb-2">{a.nomeAtividade}</div>
+                      <div className="space-y-1.5">
+                        {a.operadores.map((o) => {
+                          const destacado = operadorDestacado === o.usuarioId;
+                          return (
+                            <div key={o.usuarioId} className="flex items-center gap-3">
+                              <span className={`text-xs w-32 flex-shrink-0 truncate ${destacado ? "font-semibold text-brand-700" : "text-gray-600"}`}>
+                                {o.nome}
+                              </span>
+                              <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${destacado ? "bg-brand-600" : "bg-brand-300"}`}
+                                  style={{ width: `${Math.max(4, (o.totalHoras / maxHoras) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-700 w-16 text-right flex-shrink-0 font-medium">
+                                {formatarMin(o.totalHoras * 60)}
+                              </span>
+                              <span className="text-[11px] text-gray-400 w-24 text-right flex-shrink-0">
+                                méd. {formatarMin(o.mediaMinutosPorRegistro)}
+                              </span>
+                              {o.totalQuantidade != null && (
+                                <span className="text-[11px] text-gray-400 w-20 text-right flex-shrink-0">
+                                  {o.totalQuantidade} un.
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </>
