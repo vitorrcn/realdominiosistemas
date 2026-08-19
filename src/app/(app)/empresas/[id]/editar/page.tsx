@@ -84,12 +84,20 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
         respSocietId:   empresa.respSocietario?.id ?? "",
         respCarteiraId: empresa.respCarteira?.id ?? "",
         respLiderId:      empresa.respLider?.id ?? "",
-        respSupervisorId: empresa.respSupervisor?.id ?? "",
+        supervisorIds:    (empresa.supervisores ?? []).map((s: any) => s.id) as string[],
       });
     }
   }, [empresa, form]);
 
   const set = (k: string, v: any) => setForm((p) => ({ ...(p as any), [k]: v }));
+  const alternarSupervisor = (id: string) =>
+    setForm((p) => {
+      const atuais: string[] = (p as any)?.supervisorIds ?? [];
+      return {
+        ...(p as any),
+        supervisorIds: atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id],
+      };
+    });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,7 +118,7 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
       respSocietId:   form.respSocietId   || null,
       respCarteiraId: form.respCarteiraId || null,
       respLiderId:      form.respLiderId      || null,
-      respSupervisorId: form.respSupervisorId || null,
+      supervisorIds:    form.supervisorIds    || [],
     };
 
     const resultado = await atualizarGeral(payload);
@@ -147,7 +155,6 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
 
   const RESPONSAVEIS = [
     { key: "respLiderId",      label: "Líder responsável" },
-    { key: "respSupervisorId", label: "Supervisor responsável" },
     { key: "respFiscalId",   label: "Responsável Fiscal" },
     { key: "respContabilId", label: "Responsável Contábil" },
     { key: "respDpId",       label: "Responsável DP" },
@@ -301,6 +308,24 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
                 </select>
               </div>
             ))}
+            <div>
+              <label className="label">Supervisor(es) responsável(is)</label>
+              <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
+                {usuarios.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário cadastrado.</p>
+                ) : usuarios.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={(form.supervisorIds ?? []).includes(u.id)}
+                      onChange={() => alternarSupervisor(u.id)}
+                    />
+                    {u.nome}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Pode marcar mais de um.</p>
+            </div>
           </div>
         </div>
 

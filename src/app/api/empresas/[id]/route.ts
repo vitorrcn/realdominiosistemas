@@ -23,7 +23,7 @@ export async function GET(
       respSocietario: { select: { id: true, nome: true } },
       respCarteira:   { select: { id: true, nome: true } },
       respLider:      { select: { id: true, nome: true } },
-      respSupervisor: { select: { id: true, nome: true } },
+      supervisores:   { select: { usuario: { select: { id: true, nome: true } } } },
       fiscal:         true,
       contabil:       true,
       dp:             true,
@@ -101,7 +101,12 @@ export async function GET(
     },
   });
 
-  return NextResponse.json({ ...empresa, obrigacoesCompetencia: obrigacoes, competencia });
+  return NextResponse.json({
+    ...empresa,
+    supervisores: empresa.supervisores.map((s) => s.usuario),
+    obrigacoesCompetencia: obrigacoes,
+    competencia,
+  });
 }
 
 // PUT /api/empresas/[id] — atualizar dados gerais
@@ -157,9 +162,26 @@ export async function PUT(
         respSocietId:  body.respSocietId  || null,
         respCarteiraId:body.respCarteiraId|| null,
         respLiderId:      body.respLiderId      || null,
-        respSupervisorId: body.respSupervisorId || null,
       },
     });
+
+    // Supervisores (N:N) — só mexe se o formulário mandou a lista; substitui
+    // o conjunto inteiro pelo que veio, pra refletir marcações/desmarcações.
+    let qtdSupervisores = 0;
+    if (Array.isArray(body.supervisorIds)) {
+      const idsUnicos = [...new Set(body.supervisorIds)] as string[];
+      await prisma.$transaction([
+        prisma.empresaSupervisor.deleteMany({ where: { empresaId: params.id } }),
+        ...(idsUnicos.length > 0
+          ? [prisma.empresaSupervisor.createMany({
+              data: idsUnicos.map((usuarioId) => ({ empresaId: params.id, usuarioId })),
+            })]
+          : []),
+      ]);
+      qtdSupervisores = idsUnicos.length;
+    } else {
+      qtdSupervisores = await prisma.empresaSupervisor.count({ where: { empresaId: params.id } });
+    }
 
     // ── Regra: avisar (sem bloquear) quando sai de "Cadastro incompleto"
     // e ainda faltam informações básicas ────────────────────────────
@@ -172,7 +194,7 @@ export async function PUT(
       if (!empresa.municipio || !empresa.estado) avisos.push("Município/Estado não preenchidos");
       if (!empresa.dataAbertura) avisos.push("Data de abertura não preenchida");
       if (!empresa.respLiderId) avisos.push("Líder responsável não definido");
-      if (!empresa.respSupervisorId) avisos.push("Supervisor responsável não definido");
+      if (qtdSupervisores === 0) avisos.push("Nenhum supervisor responsável definido");
       if (!empresa.respFiscalId || !empresa.respContabilId || !empresa.respDpId || !empresa.respSocietId) {
         avisos.push("Nem todos os responsáveis de setor (Fiscal/Contábil/DP/Societário) estão definidos");
       }

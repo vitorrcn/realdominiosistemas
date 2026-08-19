@@ -59,7 +59,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Acesso rápido */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <a href="/empresas" className="card hover:border-brand-200 transition-colors group">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center group-hover:bg-brand-100 transition-colors">
@@ -113,6 +113,22 @@ export default async function DashboardPage() {
               <div>
                 <div className="text-sm font-medium text-gray-900">Horas da equipe</div>
                 <div className="text-xs text-gray-400">Relatórios de registro de horas</div>
+              </div>
+            </div>
+          </a>
+        )}
+
+        {perfil === "DIRETORIA" && (
+          <a href="/relatorios/equipe" className="card hover:border-indigo-200 transition-colors group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 4v-2a4 4 0 00-3-3.87m-9.03 0A4 4 0 003 18v2" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-gray-900">Estatísticas da equipe</div>
+                <div className="text-xs text-gray-400">Carteira, liderança e supervisão por pessoa</div>
               </div>
             </div>
           </a>

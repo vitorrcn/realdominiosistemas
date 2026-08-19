@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
         { respDpId: user.id },
         { respSocietId: user.id },
         { respLiderId: user.id },
-        { respSupervisorId: user.id },
+        { supervisores: { some: { usuarioId: user.id } } },
       ],
     });
   } else if (!["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal)) {
@@ -244,7 +244,9 @@ export async function POST(req: NextRequest) {
         status: "CADASTRO_INCOMPLETO",
         respCarteiraId: body.respCarteiraId || null,
         respLiderId: body.respLiderId || null,
-        respSupervisorId: body.respSupervisorId || null,
+        supervisores: Array.isArray(body.supervisorIds) && body.supervisorIds.length > 0
+          ? { create: [...new Set(body.supervisorIds)].map((usuarioId) => ({ usuarioId: usuarioId as string })) }
+          : undefined,
         // Criar módulos setoriais vazios automaticamente (e já com o
         // regime tributário, se veio da importação por PDF)
         fiscal: { create: { regimeTributario: body.regimeTributario || null } },

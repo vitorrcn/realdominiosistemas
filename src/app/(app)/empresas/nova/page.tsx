@@ -28,10 +28,17 @@ export default function NovaEmpresaPage() {
     dataAbertura: "",
     dataEntrada: new Date().toISOString().slice(0, 10),
     respLiderId: "",
-    respSupervisorId: "",
+    supervisorIds: [] as string[],
   });
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+  const alternarSupervisor = (id: string) =>
+    setForm((p) => ({
+      ...p,
+      supervisorIds: p.supervisorIds.includes(id)
+        ? p.supervisorIds.filter((x) => x !== id)
+        : [...p.supervisorIds, id],
+    }));
   const ehPF = form.tipoPessoa === "PF";
 
   async function handleSubmit(e: React.FormEvent) {
@@ -161,11 +168,18 @@ export default function NovaEmpresaPage() {
               </select>
             </div>
             <div>
-              <label className="label">Supervisor responsável</label>
-              <select className="select" value={form.respSupervisorId} onChange={(e) => set("respSupervisorId", e.target.value)}>
-                <option value="">Não atribuído</option>
-                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-              </select>
+              <label className="label">Supervisor(es) responsável(is)</label>
+              <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
+                {usuarios.length === 0 ? (
+                  <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário cadastrado.</p>
+                ) : usuarios.map((u) => (
+                  <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" checked={form.supervisorIds.includes(u.id)} onChange={() => alternarSupervisor(u.id)} />
+                    {u.nome}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Pode marcar mais de um.</p>
             </div>
           </div>
           <p className="text-xs text-gray-400">
