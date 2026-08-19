@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresQueSupervisiona, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusObrigacao, Prisma } from "@prisma/client";
 import { atualizarObrigacoesEmAtraso, empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
@@ -40,16 +40,11 @@ export async function GET(req: NextRequest) {
     ...(setorId && { template: { setorId } }),
   };
 
-  // Setor de cada obrigação → campo de responsável correspondente na Empresa.
-  // "Minha carteira" usa isso para mostrar as obrigações de cada setor em que
-  // o usuário logado é o responsável (Fiscal/Contábil/DP/Societário) — não
-  // apenas as instâncias atribuídas individualmente a ele.
-  const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" | "respDpId" | "respSocietId"> = {
-    "Fiscal": "respFiscalId",
-    "Contábil": "respContabilId",
-    "Departamento Pessoal": "respDpId",
-    "Societário": "respSocietId",
-  };
+  // "Minha carteira" usa o setor de cada obrigação (Fiscal/Contábil/DP/
+  // Societário) pra mostrar as obrigações onde o usuário logado é o
+  // responsável — ou, se ele for supervisor daquele setor, a carteira
+  // INTEIRA do setor (todas as empresas, não só as dele).
+  const setoresSupervisionados = setoresQueSupervisiona(user.setores ?? []);
 
   // Some do quadro (sem apagar nada) quem já saiu antes do início desta
   // competência — é o que evita uma empresa que saiu há anos continuar
@@ -65,7 +60,12 @@ export async function GET(req: NextRequest) {
             obrigacaoEmpresa: {
               ...baseObrigEmpresaWhere,
               template: { ...(setorId && { setorId }), setor: { nome: nomeSetor } },
-              empresa: { deletedAt: null, ativo: true, [campo]: user.id, AND: [visivelNaCompetencia] },
+              empresa: {
+                deletedAt: null,
+                ativo: true,
+                [campo]: setoresSupervisionados.includes(nomeSetor) ? { not: null } : user.id,
+                AND: [visivelNaCompetencia],
+              },
             },
           })),
         }

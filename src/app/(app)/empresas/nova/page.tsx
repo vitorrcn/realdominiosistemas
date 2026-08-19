@@ -28,17 +28,9 @@ export default function NovaEmpresaPage() {
     dataAbertura: "",
     dataEntrada: new Date().toISOString().slice(0, 10),
     respLiderId: "",
-    supervisorIds: [] as string[],
   });
 
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-  const alternarSupervisor = (id: string) =>
-    setForm((p) => ({
-      ...p,
-      supervisorIds: p.supervisorIds.includes(id)
-        ? p.supervisorIds.filter((x) => x !== id)
-        : [...p.supervisorIds, id],
-    }));
   const ehPF = form.tipoPessoa === "PF";
 
   async function handleSubmit(e: React.FormEvent) {
@@ -159,31 +151,17 @@ export default function NovaEmpresaPage() {
 
         <div className="card space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Responsáveis</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label">Mordomo(a) responsável</label>
-              <select className="select" value={form.respLiderId} onChange={(e) => set("respLiderId", e.target.value)}>
-                <option value="">Não atribuído</option>
-                {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Supervisor(es) responsável(is)</label>
-              <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
-                {usuarios.length === 0 ? (
-                  <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário cadastrado.</p>
-                ) : usuarios.map((u) => (
-                  <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
-                    <input type="checkbox" checked={form.supervisorIds.includes(u.id)} onChange={() => alternarSupervisor(u.id)} />
-                    {u.nome}
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Pode marcar mais de um.</p>
-            </div>
+          <div>
+            <label className="label">Mordomo(a) responsável</label>
+            <select className="select" value={form.respLiderId} onChange={(e) => set("respLiderId", e.target.value)}>
+              <option value="">Não atribuído</option>
+              {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
           </div>
           <p className="text-xs text-gray-400">
             Os responsáveis por setor (Fiscal, Contábil, DP, Societário) são definidos depois, em &quot;Editar cadastro&quot;.
+            Supervisores não são definidos por empresa — eles são configurados por setor em Configurações &gt; Usuários,
+            e passam a enxergar automaticamente a carteira inteira daquele setor.
           </p>
         </div>
 

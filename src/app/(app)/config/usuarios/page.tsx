@@ -11,20 +11,23 @@ const PERFIS: Record<string, string> = {
   CONSULTA:     "Estagiário",
 };
 
+const MAX_SUPERVISORES_POR_SETOR = 2;
+
 interface FormUsuario {
   nome: string;
   email: string;
   senha: string;
   perfilGlobal: string;
   podeVerComercial: boolean;
-  setoresSel: string[];
+  // chave = setorId, valor = "membro" | "supervisor"
+  setoresSel: Record<string, string>;
 }
 
 const FORM_VAZIO: FormUsuario = {
   nome: "", email: "", senha: "",
   perfilGlobal: "OPERADOR",
   podeVerComercial: false,
-  setoresSel: [],
+  setoresSel: {},
 };
 
 export default function UsuariosPage() {
@@ -56,19 +59,31 @@ export default function UsuariosPage() {
     return () => document.removeEventListener("click", fechar);
   }, [menuAberto]);
 
+  // Quantos OUTROS usuários (fora o que está sendo editado) já são
+  // supervisores de cada setor — usado pra travar o 3º supervisor.
+  function supervisoresAtuais(setorId: string): number {
+    return usuarios.filter(
+      (u) =>
+        u.id !== modal?.usuarioId &&
+        (u.setores ?? []).some((s: any) => s.setor.id === setorId && s.papel === "supervisor")
+    ).length;
+  }
+
   function abrirCriacao() {
     setForm(FORM_VAZIO);
     setModal({ aberto: true });
   }
 
   function abrirEdicao(u: any) {
+    const setoresSel: Record<string, string> = {};
+    for (const s of u.setores ?? []) setoresSel[s.setor.id] = s.papel || "membro";
     setForm({
       nome: u.nome,
       email: u.email,
       senha: "",
       perfilGlobal: u.perfilGlobal,
       podeVerComercial: u.podeVerComercial,
-      setoresSel: (u.setores ?? []).map((s: any) => s.setor.id),
+      setoresSel,
     });
     setModal({ aberto: true, usuarioId: u.id });
   }
@@ -83,7 +98,7 @@ export default function UsuariosPage() {
       email: form.email,
       perfilGlobal: form.perfilGlobal,
       podeVerComercial: form.podeVerComercial,
-      setores: form.setoresSel.map((id) => ({ setorId: id, papel: "membro" })),
+      setores: Object.entries(form.setoresSel).map(([setorId, papel]) => ({ setorId, papel })),
     };
     if (form.senha) payload.senha = form.senha; // só manda senha se foi preenchida
 
@@ -137,12 +152,20 @@ export default function UsuariosPage() {
   }
 
   function toggleSetor(id: string) {
-    setForm((p) => ({
-      ...p,
-      setoresSel: p.setoresSel.includes(id)
-        ? p.setoresSel.filter((s) => s !== id)
-        : [...p.setoresSel, id],
-    }));
+    setForm((p) => {
+      const atual = { ...p.setoresSel };
+      if (id in atual) delete atual[id];
+      else atual[id] = "membro";
+      return { ...p, setoresSel: atual };
+    });
+  }
+
+  function toggleSupervisor(id: string) {
+    setForm((p) => {
+      const papelAtual = p.setoresSel[id];
+      if (papelAtual !== "supervisor" && supervisoresAtuais(id) >= MAX_SUPERVISORES_POR_SETOR) return p;
+      return { ...p, setoresSel: { ...p.setoresSel, [id]: papelAtual === "supervisor" ? "membro" : "supervisor" } };
+    });
   }
 
   const editando = !!modal?.usuarioId;
@@ -167,9 +190,9 @@ export default function UsuariosPage() {
           <thead>
             <tr>
               <th style={{ width: "18%" }}>Nome</th>
-              <th style={{ width: "24%" }}>E-mail</th>
+              <th style={{ width: "22%" }}>E-mail</th>
               <th style={{ width: "10%" }}>Perfil</th>
-              <th style={{ width: "14%" }}>Setores</th>
+              <th style={{ width: "16%" }}>Setores</th>
               <th style={{ width: "9%" }}>Comercial</th>
               <th style={{ width: "8%" }}>Desde</th>
               <th style={{ width: "8%" }}>Status</th>
@@ -185,7 +208,9 @@ export default function UsuariosPage() {
                 <td className="text-gray-500 text-xs font-mono">{u.email}</td>
                 <td><span className="badge badge-blue">{PERFIS[u.perfilGlobal] ?? u.perfilGlobal}</span></td>
                 <td className="text-xs text-gray-500">
-                  {u.setores?.map((s: any) => s.setor.nome).join(", ") || "—"}
+                  {u.setores?.length
+                    ? u.setores.map((s: any) => `${s.setor.nome}${s.papel === "supervisor" ? " (supervisor)" : ""}`).join(", ")
+                    : "—"}
                 </td>
                 <td>
                   {u.podeVerComercial
@@ -271,17 +296,42 @@ export default function UsuariosPage() {
               </div>
               <div>
                 <label className="label">Setores</label>
-                <div className="flex flex-wrap gap-2">
-                  {setores.map((s) => (
-                    <button
-                      type="button"
-                      key={s.id}
-                      onClick={() => toggleSetor(s.id)}
-                      className={`badge cursor-pointer ${form.setoresSel.includes(s.id) ? "bg-brand-100 text-brand-700" : "badge-gray"}`}
-                    >
-                      {s.nome}
-                    </button>
-                  ))}
+                <p className="text-xs text-gray-400 -mt-1 mb-2">
+                  Marcar &quot;supervisor&quot; de um setor faz a pessoa enxergar e editar a carteira inteira
+                  daquele setor (todas as empresas, não só as dela). No máximo {MAX_SUPERVISORES_POR_SETOR} supervisores por setor.
+                </p>
+                <div className="space-y-2">
+                  {setores.map((s) => {
+                    const selecionado = s.id in form.setoresSel;
+                    const ehSupervisor = form.setoresSel[s.id] === "supervisor";
+                    const outrosSupervisores = supervisoresAtuais(s.id);
+                    const limiteAtingido = !ehSupervisor && outrosSupervisores >= MAX_SUPERVISORES_POR_SETOR;
+                    return (
+                      <div key={s.id} className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleSetor(s.id)}
+                          className={`badge cursor-pointer ${selecionado ? "bg-brand-100 text-brand-700" : "badge-gray"}`}
+                        >
+                          {s.nome}
+                        </button>
+                        {selecionado && (
+                          <label
+                            className={`flex items-center gap-1.5 text-xs cursor-pointer ${limiteAtingido ? "text-gray-300 cursor-not-allowed" : "text-gray-600"}`}
+                            title={limiteAtingido ? `Esse setor já tem ${MAX_SUPERVISORES_POR_SETOR} supervisores` : undefined}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={limiteAtingido}
+                              checked={ehSupervisor}
+                              onChange={() => toggleSupervisor(s.id)}
+                            />
+                            supervisor {limiteAtingido && !ehSupervisor && `(${outrosSupervisores}/${MAX_SUPERVISORES_POR_SETOR})`}
+                          </label>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">

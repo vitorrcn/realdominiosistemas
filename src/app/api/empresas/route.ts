@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresQueSupervisiona, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusEmpresa, RegimeTributario, Prisma } from "@prisma/client";
 
@@ -57,21 +57,24 @@ export async function GET(req: NextRequest) {
 
   // Restrição por carteira. "Minha carteira" é sempre pessoal — mostra só
   // as empresas onde o próprio usuário logado é responsável em algum
-  // setor (Fiscal/Contábil/DP/Societário), independente do perfil dele
-  // (inclusive Diretoria/Coordenador, que normalmente veem tudo). Fora
-  // desse filtro, quem não tem visão geral já fica restrito à própria
-  // carteira por padrão.
+  // setor (Fiscal/Contábil/DP/Societário) ou é o mordomo, mais a carteira
+  // INTEIRA de qualquer setor que ele supervisiona — independente do
+  // perfil dele (inclusive Diretoria/Coordenador, que normalmente veem
+  // tudo). Fora desse filtro, quem não tem visão geral já fica restrito à
+  // própria carteira por padrão.
   if (minhaCarteira) {
-    filtrosAdicionais.push({
-      OR: [
-        { respFiscalId: user.id },
-        { respContabilId: user.id },
-        { respDpId: user.id },
-        { respSocietId: user.id },
-        { respLiderId: user.id },
-        { supervisores: { some: { usuarioId: user.id } } },
-      ],
-    });
+    const condicoes: Prisma.EmpresaWhereInput[] = [
+      { respFiscalId: user.id },
+      { respContabilId: user.id },
+      { respDpId: user.id },
+      { respSocietId: user.id },
+      { respLiderId: user.id },
+    ];
+    for (const nomeSetor of setoresQueSupervisiona(user.setores ?? [])) {
+      const campo = SETOR_RESP_FIELD[nomeSetor];
+      if (campo) condicoes.push({ [campo]: { not: null } });
+    }
+    filtrosAdicionais.push({ OR: condicoes });
   } else if (!["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal)) {
     const restricao = filtroCarteira(user.id, user.perfilGlobal, user.setores);
     if (restricao.OR) filtrosAdicionais.push(restricao);
@@ -244,9 +247,6 @@ export async function POST(req: NextRequest) {
         status: "CADASTRO_INCOMPLETO",
         respCarteiraId: body.respCarteiraId || null,
         respLiderId: body.respLiderId || null,
-        supervisores: Array.isArray(body.supervisorIds) && body.supervisorIds.length > 0
-          ? { create: [...new Set(body.supervisorIds)].map((usuarioId) => ({ usuarioId: usuarioId as string })) }
-          : undefined,
         // Criar módulos setoriais vazios automaticamente (e já com o
         // regime tributário, se veio da importação por PDF)
         fiscal: { create: { regimeTributario: body.regimeTributario || null } },

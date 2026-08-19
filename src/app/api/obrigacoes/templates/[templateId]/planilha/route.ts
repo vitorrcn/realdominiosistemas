@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, setoresQueSupervisiona, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
-
-// Setor da obrigação → campo de responsável correspondente na Empresa.
-// O filtro de "carteira" desta planilha precisa olhar o responsável do
-// MESMO setor da obrigação (ex.: obrigação Contábil → respContabilId) —
-// não um campo genérico de "operador responsável" desconectado do setor.
-const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" | "respDpId" | "respSocietId"> = {
-  "Fiscal": "respFiscalId",
-  "Contábil": "respContabilId",
-  "Departamento Pessoal": "respDpId",
-  "Societário": "respSocietId",
-};
 
 function competenciaMaisMeses(base: string, delta: number): string {
   const [ano, mes] = base.split("-").map(Number);
@@ -43,18 +32,20 @@ export async function GET(
     const mesBase = req.nextUrl.searchParams.get("mesBase") || competenciaAtual();
     const competencias = [0, 1, 2].map((i) => competenciaMaisMeses(mesBase, i));
 
-    // Operador só pode ver a própria carteira, não importa o que pedir na URL.
-    // Níveis acima (Líder/Coordenador/Diretoria) têm liberdade de escolher
-    // qualquer carteira, ou ver todo mundo (sem filtro).
-    let carteiraId = req.nextUrl.searchParams.get("carteiraId") || undefined;
-    if (user.perfilGlobal === "OPERADOR") carteiraId = user.id;
-
     const template = await prisma.obrigacaoTemplate.findUnique({
       where: { id: params.templateId },
       select: { id: true, nome: true, setorId: true, setor: { select: { nome: true } } },
     });
     if (!template)
       return NextResponse.json({ error: "Obrigação não encontrada" }, { status: 404 });
+
+    // Operador só pode ver a própria carteira, não importa o que pedir na URL
+    // — a menos que ele seja supervisor do setor desta obrigação, aí tem a
+    // mesma liberdade de Líder/Coordenador/Diretoria de escolher qualquer
+    // carteira, ou ver todo mundo (sem filtro).
+    const ehSupervisorDesteSetor = setoresQueSupervisiona(user.setores ?? []).includes(template.setor.nome);
+    let carteiraId = req.nextUrl.searchParams.get("carteiraId") || undefined;
+    if (user.perfilGlobal === "OPERADOR" && !ehSupervisorDesteSetor) carteiraId = user.id;
 
     // Campo de responsável do setor desta obrigação (ex.: Contábil → respContabilId).
     const campoResp = SETOR_RESP_FIELD[template.setor.nome];
@@ -104,7 +95,7 @@ export async function GET(
       template: { id: template.id, nome: template.nome },
       competencias,
       linhas,
-      carteiraTravada: user.perfilGlobal === "OPERADOR",
+      carteiraTravada: user.perfilGlobal === "OPERADOR" && !ehSupervisorDesteSetor,
       carteiraSelecionada: carteiraId ?? null,
     });
   } catch (e: any) {

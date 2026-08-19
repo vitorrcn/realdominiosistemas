@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, validarLimiteSupervisores } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { PerfilGlobal } from "@prisma/client";
@@ -35,6 +35,9 @@ export async function PUT(
 
     // Atualizar setores se informado
     if (body.setores) {
+      const erroLimite = await validarLimiteSupervisores(body.setores, params.id);
+      if (erroLimite) return NextResponse.json({ error: erroLimite }, { status: 400 });
+
       await prisma.usuarioSetor.deleteMany({ where: { usuarioId: params.id } });
       if (body.setores.length > 0) {
         await prisma.usuarioSetor.createMany({

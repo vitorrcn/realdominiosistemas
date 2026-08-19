@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, setoresQueSupervisiona } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // Mapeia o slug da URL para o nome real do setor no banco e para o
@@ -52,8 +52,11 @@ export async function GET(req: NextRequest) {
 
   const whereEmpresa: any = { deletedAt: null, ativo: true, id: { in: idsVinculados } };
 
-  // Operador só vê as empresas onde ELE é o responsável deste setor específico
-  if (user.perfilGlobal === "OPERADOR") {
+  // Operador só vê as empresas onde ELE é o responsável deste setor
+  // específico — a menos que ele seja supervisor desse setor, aí vê a
+  // carteira inteira, igual Líder/Coordenador/Diretoria já veem.
+  const ehSupervisorDesteSetor = setoresQueSupervisiona(user.setores ?? []).includes(config.nome);
+  if (user.perfilGlobal === "OPERADOR" && !ehSupervisorDesteSetor) {
     whereEmpresa[config.respCampo] = user.id;
   }
 

@@ -18,6 +18,7 @@ interface LinhaEquipe {
   empresasCarteira: number;
   empresasLidera: number;
   empresasSupervisiona: number;
+  setoresSupervisionados: string[];
 }
 
 type Ordem = "nome" | "empresasCarteira" | "empresasLidera" | "empresasSupervisiona";
@@ -61,8 +62,9 @@ export default function RelatorioEquipePage() {
       <div>
         <h1 className="text-lg font-semibold text-gray-900">Estatísticas da equipe</h1>
         <p className="text-xs text-gray-400 mt-0.5">
-          Empresas ativas por funcionário. Como líder, supervisor e responsável de setor são papéis
-          independentes por empresa, a mesma pessoa pode aparecer com números nas três colunas.
+          Empresas ativas por funcionário. Mordomo e responsável de setor são papéis independentes por
+          empresa; supervisor é um papel por SETOR (não por empresa) — quem supervisiona um setor
+          enxerga a carteira inteira dele. A mesma pessoa pode aparecer com números nas três colunas.
         </p>
       </div>
 
@@ -89,7 +91,12 @@ export default function RelatorioEquipePage() {
                   <td className="text-gray-500">{PERFIS[l.funcao] ?? l.funcao}</td>
                   <td className="text-right">{l.empresasCarteira}</td>
                   <td className="text-right">{l.empresasLidera}</td>
-                  <td className="text-right">{l.empresasSupervisiona}</td>
+                  <td className="text-right">
+                    {l.empresasSupervisiona}
+                    {l.setoresSupervisionados.length > 0 && (
+                      <span className="text-gray-400 font-normal"> ({l.setoresSupervisionados.join(", ")})</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

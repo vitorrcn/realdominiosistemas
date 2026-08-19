@@ -46,7 +46,6 @@ model Usuario {
   empresasSociet    Empresa[]    @relation("RespSocietario")
   empresasCarteira  Empresa[]    @relation("RespCarteira")
   empresasLider     Empresa[]    @relation("RespLider")
-  empresasSupervisor EmpresaSupervisor[]
   registrosAtividade RegistroAtividade[]
   agendaItens       AgendaItem[] @relation("AgendaUsuario")
   agendaCriados     AgendaItem[] @relation("AgendaCriador")
@@ -77,6 +76,10 @@ model UsuarioSetor {
   id         String   @id @default(uuid())
   usuarioId  String
   setorId    String
+  // "membro" (padrão) ou "supervisor". Supervisor enxerga e edita a
+  // carteira INTEIRA desse setor (todas as empresas, não só as próprias),
+  // mas continua sem acesso aos outros setores. Cada setor comporta até
+  // 2 supervisores (validado na API de usuários).
   papel      String   @default("membro")
   createdAt  DateTime @default(now())
   usuario    Usuario  @relation(fields: [usuarioId], references: [id])
@@ -155,10 +158,6 @@ model Empresa {
   // Responsável pela carteira (operador que atende o cliente no dia a dia)
   respCarteira    Usuario?      @relation("RespCarteira",   fields: [respCarteiraId], references: [id])
   respLider       Usuario?      @relation("RespLider",      fields: [respLiderId],    references: [id])
-  // Supervisor pode ser mais de um por empresa (por isso é uma relação
-  // N:N via tabela própria, diferente de líder/fiscal/contábil/etc, que
-  // continuam sendo um responsável único por empresa).
-  supervisores    EmpresaSupervisor[]
   fiscal          Fiscal?
   contabil        Contabil?
   dp              Dp?
@@ -174,22 +173,6 @@ model Empresa {
   acessos         AcessoSistema[]
   registrosAtividade RegistroAtividade[]
   @@map("empresas")
-}
-
-// Uma empresa pode ter vários supervisores ao mesmo tempo (diferente de
-// líder e dos responsáveis de setor, que continuam sendo um só por
-// empresa). Um mesmo usuário pode ser supervisor de uma empresa, líder
-// de outra e operador (responsável de setor) de uma terceira, tudo ao
-// mesmo tempo - os três papéis são independentes por empresa.
-model EmpresaSupervisor {
-  id        String   @id @default(uuid())
-  empresaId String
-  usuarioId String
-  createdAt DateTime @default(now())
-  empresa   Empresa  @relation(fields: [empresaId], references: [id])
-  usuario   Usuario  @relation(fields: [usuarioId], references: [id])
-  @@unique([empresaId, usuarioId])
-  @@map("empresa_supervisores")
 }
 
 model Pessoa {

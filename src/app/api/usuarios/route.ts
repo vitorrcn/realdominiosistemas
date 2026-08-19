@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, validarLimiteSupervisores } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { PerfilGlobal } from "@prisma/client";
@@ -58,6 +58,9 @@ export async function POST(req: NextRequest) {
 
   if (!nome || !email || !senha)
     return NextResponse.json({ error: "nome, email e senha são obrigatórios" }, { status: 400 });
+
+  const erroLimite = await validarLimiteSupervisores(setores);
+  if (erroLimite) return NextResponse.json({ error: erroLimite }, { status: 400 });
 
   const senhaHash = await bcrypt.hash(senha, 12);
 

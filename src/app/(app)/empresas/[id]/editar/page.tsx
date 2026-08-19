@@ -84,20 +84,11 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
         respSocietId:   empresa.respSocietario?.id ?? "",
         respCarteiraId: empresa.respCarteira?.id ?? "",
         respLiderId:      empresa.respLider?.id ?? "",
-        supervisorIds:    (empresa.supervisores ?? []).map((s: any) => s.id) as string[],
       });
     }
   }, [empresa, form]);
 
   const set = (k: string, v: any) => setForm((p) => ({ ...(p as any), [k]: v }));
-  const alternarSupervisor = (id: string) =>
-    setForm((p) => {
-      const atuais: string[] = (p as any)?.supervisorIds ?? [];
-      return {
-        ...(p as any),
-        supervisorIds: atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id],
-      };
-    });
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -118,7 +109,6 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
       respSocietId:   form.respSocietId   || null,
       respCarteiraId: form.respCarteiraId || null,
       respLiderId:      form.respLiderId      || null,
-      supervisorIds:    form.supervisorIds    || [],
     };
 
     const resultado = await atualizarGeral(payload);
@@ -293,8 +283,9 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
         <div className="card space-y-4">
           <h2 className="text-sm font-semibold text-gray-900">Responsáveis</h2>
           <p className="text-xs text-gray-400 -mt-2">
-            Operador, líder e supervisor são os responsáveis gerais pelo cliente. Os quatro últimos
-            são específicos de cada setor.
+            Mordomo(a) é o responsável geral pelo cliente. Os quatro últimos são específicos de cada
+            setor. Supervisores não são definidos aqui — são configurados por setor em Configurações
+            &gt; Usuários, e passam a enxergar automaticamente a carteira inteira daquele setor.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {RESPONSAVEIS.map(({ key, label }) => (
@@ -308,24 +299,6 @@ export default function EditarEmpresaPage({ params }: { params: { id: string } }
                 </select>
               </div>
             ))}
-            <div>
-              <label className="label">Supervisor(es) responsável(is)</label>
-              <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100">
-                {usuarios.length === 0 ? (
-                  <p className="text-xs text-gray-400 px-3 py-2">Nenhum usuário cadastrado.</p>
-                ) : usuarios.map((u) => (
-                  <label key={u.id} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="checkbox"
-                      checked={(form.supervisorIds ?? []).includes(u.id)}
-                      onChange={() => alternarSupervisor(u.id)}
-                    />
-                    {u.nome}
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Pode marcar mais de um.</p>
-            </div>
           </div>
         </div>
 

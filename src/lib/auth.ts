@@ -105,24 +105,87 @@ export function podeVerComercial(
   return perfil === "DIRETORIA" || flagIndividual;
 }
 
+export type SetorUsuario = { setorId: string; nome: string; papel: string };
+
+// Nome do setor → campo de responsável correspondente na Empresa. Usado
+// tanto pra achar a carteira pessoal de alguém quanto pra achar a carteira
+// INTEIRA de um setor que a pessoa supervisiona.
+export const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" | "respDpId" | "respSocietId"> = {
+  "Fiscal": "respFiscalId",
+  "Contábil": "respContabilId",
+  "Departamento Pessoal": "respDpId",
+  "Societário": "respSocietId",
+};
+
+// Nomes dos setores em que a pessoa é supervisora (papel === "supervisor").
+// Supervisor de um setor enxerga e edita a carteira INTEIRA daquele setor
+// (todas as empresas, não só as que ele mesmo atende), mas não tem
+// nenhum acesso extra nos outros setores.
+export function setoresQueSupervisiona(setores: SetorUsuario[]): string[] {
+  return (setores ?? []).filter((s) => s.papel === "supervisor").map((s) => s.nome);
+}
+
 // Filtro de empresas por carteira — aplica restrição se necessário
 export function filtroCarteira(
   usuarioId: string,
   perfil: PerfilGlobal,
-  setores: Array<{ setorId: string; papel: string }>
+  setores: SetorUsuario[]
 ) {
   // Estagiário não tem carteira própria — vê todas, pra poder auxiliar
   // qualquer operador. Diretoria/Coordenador também sempre veem tudo.
   if (podeVerTudo(perfil) || perfil === "CONSULTA") return {};
 
-  // Mordomo(a)/Operador vê somente empresas onde é responsável
-  return {
-    OR: [
-      { respFiscalId: usuarioId },
-      { respContabilId: usuarioId },
-      { respDpId: usuarioId },
-      { respSocietId: usuarioId },
-      { respCarteiraId: usuarioId },
-    ],
-  };
+  const setoresSupervisionados = setoresQueSupervisiona(setores);
+
+  // Mordomo(a)/Operador vê as empresas onde é responsável pessoalmente...
+  const condicoes: Record<string, any>[] = [
+    { respFiscalId: usuarioId },
+    { respContabilId: usuarioId },
+    { respDpId: usuarioId },
+    { respSocietId: usuarioId },
+    { respCarteiraId: usuarioId },
+  ];
+
+  // ...mais a carteira INTEIRA de qualquer setor que ele supervisiona
+  // (toda empresa que tenha responsável nesse setor, não só as suas).
+  for (const nomeSetor of setoresSupervisionados) {
+    const campo = SETOR_RESP_FIELD[nomeSetor];
+    if (campo) condicoes.push({ [campo]: { not: null } });
+  }
+
+  return { OR: condicoes };
+}
+
+const MAX_SUPERVISORES_POR_SETOR = 2;
+
+// Confere se marcar esse conjunto de setores como supervisor estouraria o
+// limite de supervisores por setor. `usuarioIdExcluir` tira o próprio
+// usuário da contagem (pra edição não se travar sozinho). Retorna uma
+// mensagem de erro (pra devolver como 400) ou null se estiver tudo certo.
+export async function validarLimiteSupervisores(
+  setores: { setorId: string; papel?: string }[] | undefined,
+  usuarioIdExcluir?: string
+): Promise<string | null> {
+  const setoresNovosComoSupervisor = (setores ?? []).filter((s) => s.papel === "supervisor").map((s) => s.setorId);
+  if (setoresNovosComoSupervisor.length === 0) return null;
+
+  const atuais = await prisma.usuarioSetor.findMany({
+    where: {
+      setorId: { in: setoresNovosComoSupervisor },
+      papel: "supervisor",
+      ...(usuarioIdExcluir ? { usuarioId: { not: usuarioIdExcluir } } : {}),
+    },
+    include: { setor: { select: { nome: true } } },
+  });
+
+  const contagem = new Map<string, number>();
+  for (const a of atuais) contagem.set(a.setorId, (contagem.get(a.setorId) ?? 0) + 1);
+
+  for (const setorId of setoresNovosComoSupervisor) {
+    if ((contagem.get(setorId) ?? 0) >= MAX_SUPERVISORES_POR_SETOR) {
+      const nomeSetor = atuais.find((a) => a.setorId === setorId)?.setor.nome ?? "esse setor";
+      return `O setor "${nomeSetor}" já tem ${MAX_SUPERVISORES_POR_SETOR} supervisores.`;
+    }
+  }
+  return null;
 }
