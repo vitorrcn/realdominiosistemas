@@ -20,6 +20,12 @@ const itens = [
     desc: "Configurar obrigações mensais por setor",
   },
   {
+    href: "/config/atividades",
+    icon: "⏱️",
+    titulo: "Atividades",
+    desc: "Lista de atividades usada no registro de horas da equipe",
+  },
+  {
     href: "/config/ramos",
     icon: "🏭",
     titulo: "Ramos de empresa",

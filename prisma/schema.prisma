@@ -47,6 +47,7 @@ model Usuario {
   empresasCarteira  Empresa[]    @relation("RespCarteira")
   empresasLider     Empresa[]    @relation("RespLider")
   empresasSupervisor Empresa[]   @relation("RespSupervisor")
+  registrosAtividade RegistroAtividade[]
   agendaItens       AgendaItem[] @relation("AgendaUsuario")
   agendaCriados     AgendaItem[] @relation("AgendaCriador")
   acessosCriados    AcessoSistema[]
@@ -169,6 +170,7 @@ model Empresa {
   documentos      Documento[]
   obsHistorico    ObsHistorico[]
   acessos         AcessoSistema[]
+  registrosAtividade RegistroAtividade[]
   @@map("empresas")
 }
 
@@ -625,4 +627,41 @@ model Notificacao {
   dataHora     DateTime @default(now())
   usuario Usuario @relation(fields: [usuarioId], references: [id])
   @@map("notificacoes")
+}
+
+// Lista de atividades cadastradas pela Diretoria (ex: "Fechamento contabil",
+// "Reuniao interna"). Usada no apontamento diario de horas de cada usuario.
+model Atividade {
+  id           String   @id @default(uuid())
+  nome         String   @unique
+  descricao    String?
+  // Se true, todo registro dessa atividade precisa informar qual cliente
+  // (empresa) ela foi feita para.
+  exigeCliente Boolean  @default(false)
+  ativo        Boolean  @default(true)
+  ordem        Int      @default(0)
+  createdAt    DateTime @default(now())
+  registros    RegistroAtividade[]
+  @@map("atividades")
+}
+
+// Apontamento diario de horas: cada linha e um intervalo de tempo que um
+// usuario passou numa atividade (opcionalmente, num cliente especifico).
+model RegistroAtividade {
+  id          String    @id @default(uuid())
+  usuarioId   String
+  atividadeId String
+  empresaId   String?
+  data        DateTime
+  horaInicio  DateTime
+  horaFim     DateTime
+  observacao  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+  atividade   Atividade @relation(fields: [atividadeId], references: [id])
+  empresa     Empresa?  @relation(fields: [empresaId], references: [id])
+  @@index([usuarioId, data])
+  @@index([atividadeId])
+  @@map("registros_atividade")
 }
