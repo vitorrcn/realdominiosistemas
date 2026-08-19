@@ -119,8 +119,6 @@ export async function PUT(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   const body = await req.json();
 
@@ -193,7 +191,7 @@ export async function PUT(
     if (saiuDeIncompleto) {
       if (!empresa.municipio || !empresa.estado) avisos.push("Município/Estado não preenchidos");
       if (!empresa.dataAbertura) avisos.push("Data de abertura não preenchida");
-      if (!empresa.respLiderId) avisos.push("Líder responsável não definido");
+      if (!empresa.respLiderId) avisos.push("Mordomo(a) responsável não definido");
       if (qtdSupervisores === 0) avisos.push("Nenhum supervisor responsável definido");
       if (!empresa.respFiscalId || !empresa.respContabilId || !empresa.respDpId || !empresa.respSocietId) {
         avisos.push("Nem todos os responsáveis de setor (Fiscal/Contábil/DP/Societário) estão definidos");

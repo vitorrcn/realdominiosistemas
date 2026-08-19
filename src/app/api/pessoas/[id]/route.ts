@@ -43,8 +43,6 @@ export async function PUT(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   const body = await req.json();
 

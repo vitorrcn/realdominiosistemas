@@ -12,10 +12,6 @@ export async function PUT(
   if (!session?.user)
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-
   try {
     const body = await req.json();
     const concluindo = body.status === "CONCLUIDO";
@@ -50,10 +46,6 @@ export async function DELETE(
   const session = await getServerSession(authOptions);
   if (!session?.user)
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-
-  const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   await prisma.tarefa.update({ where: { id: params.id }, data: { deletedAt: new Date() } });
   return NextResponse.json({ ok: true });

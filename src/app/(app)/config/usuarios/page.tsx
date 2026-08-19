@@ -6,9 +6,9 @@ import { formatData } from "@/lib/utils";
 const PERFIS: Record<string, string> = {
   DIRETORIA:    "Diretoria",
   COORDENADOR:  "Coordenador",
-  LIDER:        "Líder",
+  LIDER:        "Mordomo(a)",
   OPERADOR:     "Operador",
-  CONSULTA:     "Consulta",
+  CONSULTA:     "Estagiário",
 };
 
 interface FormUsuario {

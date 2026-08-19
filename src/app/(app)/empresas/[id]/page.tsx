@@ -23,13 +23,19 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
   const { empresa, carregando, erro, atualizarModulo, atualizarGeral } = useEmpresa(params.id);
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
+  const meuId = (session?.user as any)?.id;
   const podeVerComercial = perfil === "DIRETORIA" || (session?.user as any)?.podeVerComercial;
   const meusSetores: string[] = ((session?.user as any)?.setores ?? []).map((s: any) => s.nome);
-  const restritoAoProprioSetor = ["OPERADOR", "LIDER"].includes(perfil);
+  // Mordomo(a) (perfil LIDER) vê todos os setores da empresa em que ele é
+  // o mordomo responsável (respLiderId) — só fica restrito ao próprio
+  // setor nas demais empresas.
+  const souMordomoDestaEmpresa = perfil === "LIDER" && empresa?.respLider?.id === meuId;
+  const restritoAoProprioSetor = ["OPERADOR", "LIDER"].includes(perfil) && !souMordomoDestaEmpresa;
 
   const abasVisiveis = ABAS.filter((a) => {
     if (a.somenteComercial && !podeVerComercial) return false;
-    // Operador e Líder só veem a(s) aba(s) do(s) setor(es) deles (mais Visão 360° e Relacionamento, que não são de um setor só)
+    // Operador só vê a(s) aba(s) do(s) setor(es) dele(s) (mais Visão 360° e Relacionamento, que não são de um setor só).
+    // Mordomo(a) segue a mesma regra, exceto nas empresas em que ele é o mordomo responsável.
     if (restritoAoProprioSetor && a.setorNome && !meusSetores.includes(a.setorNome)) return false;
     return true;
   });
@@ -127,7 +133,7 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
         {/* Responsáveis */}
         <div className="flex flex-wrap gap-4 pt-1">
           {[
-            { label: "Líder",       resp: empresa.respLider },
+            { label: "Mordomo(a)",  resp: empresa.respLider },
             { label: "Fiscal",      resp: empresa.respFiscal },
             { label: "Contábil",    resp: empresa.respContabil },
             { label: "DP",          resp: empresa.respDp },
@@ -874,7 +880,7 @@ function AbaComercial({ empresa, salvar, salvando }: any) {
 function AcessosSetor({ empresaId, setorNome }: { empresaId: string; setorNome: string }) {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeEditar = perfil && perfil !== "CONSULTA";
+  const podeEditar = !!perfil;
 
   const [setorId, setSetorId] = useState<string | null>(null);
   const [acessos, setAcessos] = useState<any[]>([]);
@@ -1015,7 +1021,7 @@ function AcessosSetor({ empresaId, setorNome }: { empresaId: string; setorNome: 
 // ── Resumo de obrigações do setor para esta empresa ──────────────
 function ObrigacoesSetorResumo({ empresaId, setorNome }: { empresaId: string; setorNome: string }) {
   const { data: session } = useSession();
-  const podeEditar = ((session?.user as any)?.perfilGlobal ?? "") !== "CONSULTA";
+  const podeEditar = !!((session?.user as any)?.perfilGlobal);
 
   const [setorId, setSetorId] = useState<string | null>(null);
   const [itens, setItens] = useState<any[]>([]);

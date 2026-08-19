@@ -41,8 +41,6 @@ export async function PUT(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -104,7 +102,7 @@ export async function DELETE(
   if (!evento)
     return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
 
-  // Diretoria/Coordenador/Líder podem excluir qualquer evento; qualquer
+  // Diretoria/Coordenador/Mordomo(a) podem excluir qualquer evento; qualquer
   // outro usuário só pode excluir os eventos que ele mesmo criou.
   const podeExcluir =
     ["DIRETORIA", "COORDENADOR", "LIDER"].includes(user.perfilGlobal) ||

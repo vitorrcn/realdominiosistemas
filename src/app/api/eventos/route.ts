@@ -23,25 +23,44 @@ export async function GET(req: NextRequest) {
     if (status) where.status = status;
     if (empresaId) where.empresaId = empresaId;
 
-    // Operador e Líder só veem eventos do(s) próprio(s) setor(es) —
-    // mesmo os que são de outros colegas do mesmo setor. Diretoria e
-    // Coordenador veem tudo.
-    const restritoAoSetor = !["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal);
+    // Operador só vê eventos do(s) próprio(s) setor(es) — mesmo os que são
+    // de outros colegas do mesmo setor. Diretoria, Coordenador e
+    // Estagiário veem tudo. Mordomo(a) também só vê o próprio setor,
+    // EXCETO nas empresas em que ele é o mordomo responsável, onde vê
+    // eventos de qualquer setor.
+    const podeVerTudoSempre = ["DIRETORIA", "COORDENADOR", "CONSULTA"].includes(user.perfilGlobal);
+    const ehMordomo = user.perfilGlobal === "LIDER";
+    const restritoAoSetor = !podeVerTudoSempre;
     const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);
+    const condicoesExtras: any[] = [];
 
     if (setorId) {
       if (restritoAoSetor && !meusSetoresIds.includes(setorId)) {
-        return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
+        if (!ehMordomo) {
+          return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
+        }
+        condicoesExtras.push({ empresa: { respLiderId: user.id } });
       }
       where.setorAtualId = setorId;
     } else if (restritoAoSetor) {
-      where.setorAtualId = { in: meusSetoresIds };
+      if (ehMordomo) {
+        condicoesExtras.push({
+          OR: [
+            { setorAtualId: { in: meusSetoresIds } },
+            { empresa: { respLiderId: user.id } },
+          ],
+        });
+      } else {
+        where.setorAtualId = { in: meusSetoresIds };
+      }
     }
 
     if (minhaCarteira) {
       const restricao = filtroCarteira(user.id, user.perfilGlobal, user.setores ?? []);
-      if (restricao.OR) where.empresa = restricao;
+      if (restricao.OR) condicoesExtras.push(restricao);
     }
+
+    if (condicoesExtras.length > 0) where.AND = condicoesExtras;
 
     const eventos = await prisma.evento.findMany({
       where,
@@ -68,8 +87,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   try {
     const body = await req.json();

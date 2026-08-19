@@ -10,11 +10,18 @@ interface NavItem {
   label: string;
   icon: string;
   somenteAdmin?: boolean;
-  escondeDeOperador?: boolean;
-  escondeDeCoordenadorEConsulta?: boolean;
-  escondeDeConsulta?: boolean;
-  setorNome?: string; // se preenchido, só aparece pra quem é desse setor (Operador/Líder) ou tem visão geral
+  escondeDeOperadorEMordomo?: boolean;
+  escondeDeCoordenadorEEstagiario?: boolean;
+  setorNome?: string; // se preenchido, só aparece pra quem é desse setor (Operador/Mordomo) ou tem visão geral
 }
+
+const PERFIS: Record<string, string> = {
+  DIRETORIA:   "Diretoria",
+  COORDENADOR: "Coordenador",
+  LIDER:       "Mordomo(a)",
+  OPERADOR:    "Operador",
+  CONSULTA:    "Estagiário",
+};
 
 interface NavGrupo {
   grupo: string;
@@ -25,7 +32,7 @@ const navItems: NavGrupo[] = [
   {
     grupo: "Principal",
     itens: [
-      { href: "/dashboard",  label: "Dashboard",  icon: "chart", escondeDeOperador: true },
+      { href: "/dashboard",  label: "Dashboard",  icon: "chart", escondeDeOperadorEMordomo: true },
       { href: "/empresas",   label: "Clientes",   icon: "building" },
     ],
   },
@@ -35,8 +42,8 @@ const navItems: NavGrupo[] = [
       { href: "/obrigacoes", label: "Obrigações",  icon: "check" },
       { href: "/eventos",    label: "Eventos",    icon: "timeline" },
       { href: "/tarefas",    label: "Tarefas",    icon: "list" },
-      { href: "/agenda",     label: "Agenda",     icon: "calendar", escondeDeCoordenadorEConsulta: true },
-      { href: "/registro-horas", label: "Registro de horas", icon: "clock", escondeDeConsulta: true },
+      { href: "/agenda",     label: "Agenda",     icon: "calendar", escondeDeCoordenadorEEstagiario: true },
+      { href: "/registro-horas", label: "Registro de horas", icon: "clock" },
     ],
   },
   {
@@ -103,9 +110,8 @@ export function Sidebar() {
             <div className="space-y-0.5">
               {grupo.itens
                 .filter((item) => !item.somenteAdmin || isAdmin)
-                .filter((item) => !item.escondeDeOperador || perfil !== "OPERADOR")
-                .filter((item) => !item.escondeDeCoordenadorEConsulta || !["COORDENADOR", "CONSULTA"].includes(perfil))
-                .filter((item) => !item.escondeDeConsulta || perfil !== "CONSULTA")
+                .filter((item) => !item.escondeDeOperadorEMordomo || !["OPERADOR", "LIDER"].includes(perfil))
+                .filter((item) => !item.escondeDeCoordenadorEEstagiario || !["COORDENADOR", "CONSULTA"].includes(perfil))
                 .filter((item) => !item.setorNome || vetTudo || meusSetores.includes(item.setorNome))
                 .map((item) => (
                   <Link
@@ -141,7 +147,7 @@ export function Sidebar() {
             <div className="text-sm font-medium text-white truncate">
               {session?.user?.name}
             </div>
-            <div className="text-xs text-gray-400 truncate">{perfil}</div>
+            <div className="text-xs text-gray-400 truncate">{PERFIS[perfil] ?? perfil}</div>
           </div>
         </div>
         <Link href="/api/auth/signout" className="btn btn-sm w-full justify-center mt-2 bg-transparent border-white/10 text-gray-300 hover:bg-white/10 hover:text-white">

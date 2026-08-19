@@ -17,12 +17,14 @@ export default withAuth(
       }
     }
 
-    // Dashboard não é pra Operador — manda direto pra Clientes
-    if (path.startsWith("/dashboard") && token?.perfilGlobal === "OPERADOR") {
+    // Dashboard não é pra Operador nem Mordomo(a) — manda direto pra Clientes.
+    // O Mordomo(a) enxerga tudo da(s) empresa(s) que lidera, mas não o
+    // painel gerencial do dashboard.
+    if (path.startsWith("/dashboard") && ["OPERADOR", "LIDER"].includes(token?.perfilGlobal)) {
       return NextResponse.redirect(new URL("/empresas", req.url));
     }
 
-    // Agenda não é pra Coordenador nem Consulta — manda pra Tarefas
+    // Agenda não é pra Coordenador nem Estagiário — manda pra Tarefas
     if (path.startsWith("/agenda") && ["COORDENADOR", "CONSULTA"].includes(token?.perfilGlobal)) {
       return NextResponse.redirect(new URL("/tarefas", req.url));
     }

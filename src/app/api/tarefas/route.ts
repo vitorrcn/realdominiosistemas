@@ -25,27 +25,48 @@ export async function GET(req: NextRequest) {
     if (empresaId) where.empresaId = empresaId;
     if (minhas) where.responsavelId = user.id;
 
-    // Operador e Líder só veem tarefas do(s) próprio(s) setor(es) —
-    // mesmo as que são de outros colegas do mesmo setor. Diretoria e
-    // Coordenador veem tudo.
-    const restritoAoSetor = !["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal);
+    // Operador só vê tarefas do(s) próprio(s) setor(es) — mesmo as que são
+    // de outros colegas do mesmo setor. Diretoria, Coordenador e
+    // Estagiário veem tudo (o Estagiário não tem carteira própria, ele
+    // auxilia em todas). Mordomo(a) também só vê o próprio setor, EXCETO
+    // nas empresas em que ele é o mordomo responsável, onde vê tudo,
+    // inclusive tarefas de outros setores.
+    const podeVerTudoSempre = ["DIRETORIA", "COORDENADOR", "CONSULTA"].includes(user.perfilGlobal);
+    const ehMordomo = user.perfilGlobal === "LIDER";
+    const restritoAoSetor = !podeVerTudoSempre;
     const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);
+    const condicoesExtras: any[] = [];
 
     if (setorId) {
       // Se pediu um setor específico, só libera se for um dos dele
-      // (ou se puder ver tudo)
+      // (ou se puder ver tudo, ou for mordomo de alguma empresa)
       if (restritoAoSetor && !meusSetoresIds.includes(setorId)) {
-        return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
+        if (!ehMordomo) {
+          return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
+        }
+        // Mordomo(a): libera esse setor específico só pras empresas onde ele é o mordomo
+        condicoesExtras.push({ empresa: { respLiderId: user.id } });
       }
       where.setorId = setorId;
     } else if (restritoAoSetor) {
-      where.setorId = { in: meusSetoresIds };
+      if (ehMordomo) {
+        condicoesExtras.push({
+          OR: [
+            { setorId: { in: meusSetoresIds } },
+            { empresa: { respLiderId: user.id } },
+          ],
+        });
+      } else {
+        where.setorId = { in: meusSetoresIds };
+      }
     }
 
     if (minhaCarteira) {
       const restricao = filtroCarteira(user.id, user.perfilGlobal, user.setores ?? []);
-      if (restricao.OR) where.empresa = restricao;
+      if (restricao.OR) condicoesExtras.push(restricao);
     }
+
+    if (condicoesExtras.length > 0) where.AND = condicoesExtras;
 
     const tarefas = await prisma.tarefa.findMany({
       where,
@@ -71,8 +92,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   try {
     const body = await req.json();

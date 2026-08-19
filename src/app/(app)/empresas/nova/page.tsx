@@ -161,7 +161,7 @@ export default function NovaEmpresaPage() {
           <h2 className="text-sm font-semibold text-gray-900">Responsáveis</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">Líder responsável</label>
+              <label className="label">Mordomo(a) responsável</label>
               <select className="select" value={form.respLiderId} onChange={(e) => set("respLiderId", e.target.value)}>
                 <option value="">Não atribuído</option>
                 {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}

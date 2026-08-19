@@ -90,8 +90,12 @@ export function podeVerTudo(perfil: PerfilGlobal): boolean {
   return perfil === "DIRETORIA" || perfil === "COORDENADOR";
 }
 
+// Estagiário (perfil CONSULTA) não tem carteira própria — ele auxilia em
+// todas as carteiras dos operadores, então nunca é restrito por
+// responsabilidade individual (embora não seja "podeVerTudo" no sentido
+// de gestão/administração, que continua exclusivo de Diretoria/Coordenador).
 export function podeEditar(perfil: PerfilGlobal): boolean {
-  return perfil !== "CONSULTA";
+  return true;
 }
 
 export function podeVerComercial(
@@ -107,9 +111,11 @@ export function filtroCarteira(
   perfil: PerfilGlobal,
   setores: Array<{ setorId: string; papel: string }>
 ) {
-  if (podeVerTudo(perfil)) return {}; // sem restrição
+  // Estagiário não tem carteira própria — vê todas, pra poder auxiliar
+  // qualquer operador. Diretoria/Coordenador também sempre veem tudo.
+  if (podeVerTudo(perfil) || perfil === "CONSULTA") return {};
 
-  // Líder/Operador vê somente empresas onde é responsável
+  // Mordomo(a)/Operador vê somente empresas onde é responsável
   return {
     OR: [
       { respFiscalId: usuarioId },

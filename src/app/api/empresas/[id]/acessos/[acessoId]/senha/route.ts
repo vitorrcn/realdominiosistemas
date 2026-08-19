@@ -13,10 +13,6 @@ export async function GET(
   if (!session?.user)
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão para ver senhas" }, { status: 403 });
-
   const acesso = await prisma.acessoSistema.findUnique({
     where: { id: params.acessoId, empresaId: params.id },
   });

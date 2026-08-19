@@ -69,8 +69,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   const body = await req.json();
   const { atividadeId, empresaId, data, horaInicio, horaFim, quantidade, observacao } = body;

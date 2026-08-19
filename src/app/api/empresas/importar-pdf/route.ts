@@ -10,10 +10,6 @@ export async function POST(req: NextRequest) {
   if (!session?.user)
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const user = session.user as any;
-  if (user.perfilGlobal === "CONSULTA")
-    return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
-
   try {
     const formData = await req.formData();
     const arquivo = formData.get("arquivo") as File | null;
