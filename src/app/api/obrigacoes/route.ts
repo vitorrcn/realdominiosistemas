@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions, filtroCarteira } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusObrigacao, Prisma } from "@prisma/client";
-import { atualizarObrigacoesEmAtraso } from "@/lib/obrigacoes";
+import { atualizarObrigacoesEmAtraso, empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
 
 // GET /api/obrigacoes?competencia=2025-05&setorId=...&status=...
 export async function GET(req: NextRequest) {
@@ -51,6 +51,11 @@ export async function GET(req: NextRequest) {
     "Societário": "respSocietId",
   };
 
+  // Some do quadro (sem apagar nada) quem já saiu antes do início desta
+  // competência — é o que evita uma empresa que saiu há anos continuar
+  // aparecendo com pendência num mês em que ela nem era mais cliente.
+  const visivelNaCompetencia = empresaVisivelNaCompetenciaWhere(competencia);
+
   const where: Prisma.ObrigacaoInstanciaWhereInput = {
     competencia,
     ...(status && { status }),
@@ -60,7 +65,7 @@ export async function GET(req: NextRequest) {
             obrigacaoEmpresa: {
               ...baseObrigEmpresaWhere,
               template: { ...(setorId && { setorId }), setor: { nome: nomeSetor } },
-              empresa: { deletedAt: null, ativo: true, [campo]: user.id },
+              empresa: { deletedAt: null, ativo: true, [campo]: user.id, AND: [visivelNaCompetencia] },
             },
           })),
         }
@@ -70,7 +75,10 @@ export async function GET(req: NextRequest) {
             empresa: {
               deletedAt: null,
               ativo: true,
-              ...(restricaoEmpresa.OR ? { OR: restricaoEmpresa.OR } : {}),
+              AND: [
+                visivelNaCompetencia,
+                ...(restricaoEmpresa.OR ? [{ OR: restricaoEmpresa.OR }] : []),
+              ],
             },
           },
         }),
@@ -107,7 +115,42 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({ data: instancias, total, page, pageSize, competencia });
+  // ── Checagem de cobertura ("nenhuma empresa esquecida") ──────────────
+  // Só roda quando um setor está selecionado: lista empresas ativas (que
+  // deveriam ter obrigações desse setor) mas que não têm NENHUM vínculo
+  // ativo com nenhuma obrigação daquele setor — sinal de que alguém
+  // esqueceu de vincular esse cliente em "Gerenciar clientes".
+  let semObrigacaoVinculada: { id: string; codigoInterno: string; razaoSocial: string }[] = [];
+  if (setorId) {
+    const empresasElegiveis = await prisma.empresa.findMany({
+      where: {
+        deletedAt: null,
+        ativo: true,
+        AND: [
+          visivelNaCompetencia,
+          ...(!minhaCarteira && restricaoEmpresa.OR ? [{ OR: restricaoEmpresa.OR }] : []),
+        ],
+      },
+      select: { id: true, codigoInterno: true, razaoSocial: true },
+    });
+
+    if (empresasElegiveis.length > 0) {
+      const vinculadas = await prisma.obrigacaoEmpresa.findMany({
+        where: {
+          ativa: true,
+          template: { setorId },
+          empresaId: { in: empresasElegiveis.map((e) => e.id) },
+        },
+        select: { empresaId: true },
+      });
+      const idsVinculados = new Set(vinculadas.map((v) => v.empresaId));
+      semObrigacaoVinculada = empresasElegiveis
+        .filter((e) => !idsVinculados.has(e.id))
+        .sort((a, b) => a.codigoInterno.localeCompare(b.codigoInterno));
+    }
+  }
+
+  return NextResponse.json({ data: instancias, total, page, pageSize, competencia, semObrigacaoVinculada });
 }
 
 // PATCH /api/obrigacoes — atualizar status de uma instância

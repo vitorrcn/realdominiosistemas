@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { competenciaAtual, calcularVencimento } from "@/lib/utils";
-import { StatusEmpresa } from "@prisma/client";
+import { StatusEmpresa, Prisma } from "@prisma/client";
 
 // Status de empresa considerados "ativos" para fins de geracao de
 // obrigacoes mensais. CADASTRO_INCOMPLETO fica de fora de proposito: sao
@@ -10,6 +10,34 @@ import { StatusEmpresa } from "@prisma/client";
 // sai, as obrigacoes que ele ja tinha continuam guardadas no historico, mas
 // nenhuma nova e gerada.
 export const STATUS_EMPRESA_GERA_OBRIGACAO: StatusEmpresa[] = ["ATIVA", "EM_ATENCAO", "IMPLANTACAO"];
+
+/**
+ * Condição (pra usar dentro de um `where.empresa`) que decide se as
+ * obrigações de uma empresa devem aparecer no quadro de uma determinada
+ * competência.
+ *
+ * - Empresa em status "ativo" (ver STATUS_EMPRESA_GERA_OBRIGACAO acima):
+ *   sempre aparece.
+ * - Empresa que já saiu (Ex-cliente/Inativa/Encerrada) mas SEM data de
+ *   saída registrada: continua aparecendo — sem saber quando ela saiu,
+ *   é mais seguro não esconder nada.
+ * - Empresa que já saiu COM data de saída: só aparece nas competências
+ *   até o mês em que ela ainda estava ativa (o histórico fica intacto),
+ *   e some do quadro dali em diante — é exatamente o caso que motivou
+ *   isso: uma empresa que saiu em 2011 tinha uma obrigação "perdida"
+ *   ainda pendente em 2026 porque nada filtrava por isso.
+ */
+export function empresaVisivelNaCompetenciaWhere(competencia: string): Prisma.EmpresaWhereInput {
+  const [ano, mes] = competencia.split("-").map(Number);
+  const inicioMes = new Date(Date.UTC(ano, mes - 1, 1));
+  return {
+    OR: [
+      { status: { in: STATUS_EMPRESA_GERA_OBRIGACAO } },
+      { dataSaida: null },
+      { dataSaida: { gte: inicioMes } },
+    ],
+  };
+}
 
 /**
  * Garante que exista uma ObrigacaoInstancia para a competencia atual de um

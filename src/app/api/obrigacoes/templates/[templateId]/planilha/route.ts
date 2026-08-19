@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
 
 // Setor da obrigação → campo de responsável correspondente na Empresa.
 // O filtro de "carteira" desta planilha precisa olhar o responsável do
@@ -58,7 +59,10 @@ export async function GET(
     // Campo de responsável do setor desta obrigação (ex.: Contábil → respContabilId).
     const campoResp = SETOR_RESP_FIELD[template.setor.nome];
 
-    const empresaWhere: Prisma.EmpresaWhereInput = {};
+    // Some da planilha (sem apagar nada) quem já saiu antes do mês exibido —
+    // evita empresas que deixaram de ser cliente há muito tempo aparecerem
+    // com pendência aberta num período em que nem eram mais cliente.
+    const empresaWhere: Prisma.EmpresaWhereInput = { AND: [empresaVisivelNaCompetenciaWhere(mesBase)] };
     if (carteiraId) {
       // Se o setor da obrigação tem um campo de responsável dedicado, filtra
       // por ele; senão cai pro campo genérico (obrigações sem setor mapeado).
@@ -70,7 +74,7 @@ export async function GET(
       where: {
         templateId: params.templateId,
         ativa: true,
-        ...(carteiraId && { empresa: empresaWhere }),
+        empresa: empresaWhere,
       },
       include: {
         empresa: { select: { id: true, codigoInterno: true, razaoSocial: true, respCarteiraId: true } },

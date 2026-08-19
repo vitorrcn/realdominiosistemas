@@ -35,6 +35,8 @@ export default function ObrigacoesPage() {
   const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState<string | null>(null);
+  const [semObrigacaoVinculada, setSemObrigacaoVinculada] = useState<{ id: string; codigoInterno: string; razaoSocial: string }[]>([]);
+  const [mostrarFaltantes, setMostrarFaltantes] = useState(false);
 
   // Filtros
   const [setorId, setSetorId] = useState("");
@@ -58,6 +60,7 @@ export default function ObrigacoesPage() {
       const json = await res.json();
       setDados(json.data);
       setTotal(json.total);
+      setSemObrigacaoVinculada(json.semObrigacaoVinculada ?? []);
     }
     setCarregando(false);
   }, [competencia, setorId, status, minhaCarteira]);
@@ -196,6 +199,38 @@ export default function ObrigacoesPage() {
           Mês atual
         </button>
       </div>
+
+      {/* Checagem de cobertura — avisa se algum cliente ativo do setor
+          filtrado não tem nenhuma obrigação vinculada (pra não "sumir" da
+          lista sem ninguém perceber). Só aparece com um setor selecionado. */}
+      {setorId && semObrigacaoVinculada.length > 0 && (
+        <div className="card bg-yellow-50/50 border-yellow-200">
+          <button
+            onClick={() => setMostrarFaltantes((v) => !v)}
+            className="w-full flex items-center justify-between gap-3 text-left"
+          >
+            <span className="text-sm text-yellow-800">
+              <strong>{semObrigacaoVinculada.length} cliente(s)</strong> desse setor não têm nenhuma
+              obrigação vinculada — pode ser que alguém tenha esquecido de vincular.
+            </span>
+            <span className="text-xs text-yellow-700 flex-shrink-0">{mostrarFaltantes ? "Ocultar" : "Ver lista"}</span>
+          </button>
+          {mostrarFaltantes && (
+            <div className="mt-3 pt-3 border-t border-yellow-200 flex flex-wrap gap-2">
+              {semObrigacaoVinculada.map((e) => (
+                <a
+                  key={e.id}
+                  href={`/empresas/${e.id}`}
+                  className="text-xs font-mono bg-white border border-yellow-200 rounded px-2 py-1 text-yellow-800 hover:border-yellow-400"
+                  title={e.razaoSocial}
+                >
+                  {e.codigoInterno} — {e.razaoSocial}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Painel por empresa */}
       {carregando ? (
