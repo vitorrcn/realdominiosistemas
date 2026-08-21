@@ -254,10 +254,6 @@ model Contabil {
   id                  String    @id @default(uuid())
   empresaId           String    @unique
   ultimoFechamento    DateTime?
-  qtdContasBancarias  Int       @default(0)
-  contaPrincipal      String?
-  pessoaExtratos      String?
-  formaExtratos       String?
   obsExtratos         String?
   possuiEmprestimo    Boolean   @default(false)
   possuiFinanciamento Boolean   @default(false)
@@ -343,16 +339,22 @@ model Societario {
 }
 
 model Relacionamento {
-  id               String    @id @default(uuid())
-  empresaId        String    @unique
-  ultimoContato    DateTime?
-  ultimaReuniao    DateTime?
-  ultimaVisita     DateTime?
-  formaPrefContato String?
-  tempoResposta    String?
-  perfilCliente    String?
-  observacoes      String?
-  updatedAt        DateTime  @updatedAt
+  id                 String    @id @default(uuid())
+  empresaId          String    @unique
+  ultimoContato      DateTime?
+  ultimaReuniao      DateTime?
+  ultimaVisita       DateTime?
+  formaPrefContato   String?
+  tempoResposta      String?
+  perfilCliente      String?
+  // Pessoa(s) a quem pedir documentos/extratos do cliente - antes era um
+  // campo simples dentro de Contabil ("pessoa para solicitar extratos"),
+  // movido pra cá com telefone e e-mail de contato direto.
+  pessoaDocumentos   String?
+  telefoneDocumentos String?
+  emailDocumentos    String?
+  observacoes        String?
+  updatedAt          DateTime  @updatedAt
   empresa Empresa @relation(fields: [empresaId], references: [id])
   @@map("relacionamento")
 }

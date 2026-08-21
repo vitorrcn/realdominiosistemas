@@ -510,27 +510,9 @@ function AbaContabil({ empresa, salvar, salvando }: any) {
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Estrutura bancária</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">Quantidade de contas bancárias</label>
-            <input className="input" type="number" min={0} value={form.qtdContasBancarias ?? 0} onChange={(e) => set("qtdContasBancarias", Number(e.target.value))} />
-          </div>
-          <div>
-            <label className="label">Conta principal</label>
-            <input className="input" value={form.contaPrincipal ?? ""} onChange={(e) => set("contaPrincipal", e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Pessoa para solicitar extratos</label>
-            <input className="input" value={form.pessoaExtratos ?? ""} onChange={(e) => set("pessoaExtratos", e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Forma de solicitação</label>
-            <input className="input" value={form.formaExtratos ?? ""} onChange={(e) => set("formaExtratos", e.target.value)} />
-          </div>
-          <div className="md:col-span-2">
-            <label className="label">Observações Gerais</label>
-            <textarea className="input min-h-[80px]" value={form.obsExtratos ?? ""} onChange={(e) => set("obsExtratos", e.target.value)} />
-          </div>
+        <div>
+          <label className="label">Observações Gerais</label>
+          <textarea className="input min-h-[80px]" value={form.obsExtratos ?? ""} onChange={(e) => set("obsExtratos", e.target.value)} />
         </div>
         <div className="flex gap-6 mt-4">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -939,6 +921,24 @@ function AbaRelacionamento({ empresa, salvar, salvando }: any) {
               <option value="">Selecione...</option>
               {PERFIS.map((p) => <option key={p} value={p}>{p.charAt(0) + p.slice(1).toLowerCase()}</option>)}
             </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">Documentos</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-3">
+            <label className="label">Pessoa ou pessoas que os documentos devem ser solicitados</label>
+            <input className="input" value={form.pessoaDocumentos ?? ""} onChange={(e) => set("pessoaDocumentos", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Telefone</label>
+            <input className="input" type="tel" value={form.telefoneDocumentos ?? ""} onChange={(e) => set("telefoneDocumentos", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">E-mail</label>
+            <input className="input" type="email" value={form.emailDocumentos ?? ""} onChange={(e) => set("emailDocumentos", e.target.value)} />
           </div>
         </div>
       </div>
