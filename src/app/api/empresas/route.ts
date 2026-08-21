@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira, setoresComCarteiraCompleta, SETOR_RESP_FIELD } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresSemCarteiraPessoal, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusEmpresa, RegimeTributario, Prisma } from "@prisma/client";
 
@@ -57,11 +57,15 @@ export async function GET(req: NextRequest) {
 
   // Restrição por carteira. "Minha carteira" é sempre pessoal — mostra só
   // as empresas onde o próprio usuário logado é responsável em algum
-  // setor (Fiscal/Contábil/DP/Societário) ou é o mordomo, mais a carteira
-  // INTEIRA de qualquer setor que ele supervisiona — independente do
+  // setor (Fiscal/Contábil/DP/Societário) ou é o mordomo — independente do
   // perfil dele (inclusive Diretoria/Coordenador, que normalmente veem
-  // tudo). Fora desse filtro, quem não tem visão geral já fica restrito à
-  // própria carteira por padrão.
+  // tudo). Quem supervisiona um setor E também atende empresas
+  // pessoalmente pode usar esse filtro pra ver só o que atende, sem a
+  // carteira inteira que só enxerga por supervisão (essa continua visível
+  // sem marcar o filtro). Exceção: Estagiário (CONSULTA) nunca tem
+  // carteira pessoal, então "minha carteira" pra ele é o setor inteiro em
+  // que estiver vinculado. Fora desse filtro, quem não tem visão geral já
+  // fica restrito à própria carteira (+ supervisão) por padrão.
   if (minhaCarteira) {
     const condicoes: Prisma.EmpresaWhereInput[] = [
       { respFiscalId: user.id },
@@ -70,7 +74,7 @@ export async function GET(req: NextRequest) {
       { respSocietId: user.id },
       { respLiderId: user.id },
     ];
-    for (const nomeSetor of setoresComCarteiraCompleta(user.perfilGlobal, user.setores ?? [])) {
+    for (const nomeSetor of setoresSemCarteiraPessoal(user.perfilGlobal, user.setores ?? [])) {
       const campo = SETOR_RESP_FIELD[nomeSetor];
       if (campo) condicoes.push({ [campo]: { not: null } });
     }

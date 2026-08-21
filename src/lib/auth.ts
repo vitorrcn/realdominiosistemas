@@ -135,6 +135,20 @@ export function setoresComCarteiraCompleta(perfil: PerfilGlobal, setores: SetorU
   return setoresQueSupervisiona(setores);
 }
 
+// Setores que entram no filtro "Minha carteira" mesmo sem responsabilidade
+// pessoal em nenhuma empresa — hoje só o caso do Estagiário (CONSULTA)
+// vinculado a um setor, que nunca é responsável pessoal de ninguém: pra
+// ele, "minha carteira" É o setor inteiro (não tem outra carteira pra
+// mostrar). Supervisor de setor NÃO entra aqui de propósito: quem é
+// supervisor E operador ao mesmo tempo pode querer ver só o que atende
+// pessoalmente, sem a carteira inteira que ele só enxerga por supervisão
+// — "Minha carteira" marcado mostra só isso; sem marcar, continua vendo
+// tudo junto (personal + setor supervisionado), como sempre foi.
+export function setoresSemCarteiraPessoal(perfil: PerfilGlobal, setores: SetorUsuario[]): string[] {
+  if (perfil === "CONSULTA") return (setores ?? []).map((s) => s.nome);
+  return [];
+}
+
 // Filtro de empresas por carteira — aplica restrição se necessário
 export function filtroCarteira(
   usuarioId: string,

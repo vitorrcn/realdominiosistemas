@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira, setoresComCarteiraCompleta, SETOR_RESP_FIELD } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresSemCarteiraPessoal, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusObrigacao, Prisma } from "@prisma/client";
 import { atualizarObrigacoesEmAtraso, empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
@@ -41,10 +41,13 @@ export async function GET(req: NextRequest) {
   };
 
   // "Minha carteira" usa o setor de cada obrigação (Fiscal/Contábil/DP/
-  // Societário) pra mostrar as obrigações onde o usuário logado é o
-  // responsável — ou, se ele for supervisor daquele setor, a carteira
-  // INTEIRA do setor (todas as empresas, não só as dele).
-  const setoresSupervisionados = setoresComCarteiraCompleta(user.perfilGlobal, user.setores ?? []);
+  // Societário) pra mostrar as obrigações onde o usuário logado é
+  // pessoalmente o responsável — mesmo que ele também supervisione o
+  // setor inteiro (aí é só marcar o filtro pra ver só o que atende, e
+  // deixar de marcar pra ver tudo junto). Exceção: Estagiário (CONSULTA)
+  // nunca tem responsabilidade pessoal, então "minha carteira" pra ele é
+  // o setor inteiro em que estiver vinculado.
+  const setoresSemCarteira = setoresSemCarteiraPessoal(user.perfilGlobal, user.setores ?? []);
 
   // Some do quadro (sem apagar nada) quem já saiu antes do início desta
   // competência — é o que evita uma empresa que saiu há anos continuar
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
               empresa: {
                 deletedAt: null,
                 ativo: true,
-                [campo]: setoresSupervisionados.includes(nomeSetor) ? { not: null } : user.id,
+                [campo]: setoresSemCarteira.includes(nomeSetor) ? { not: null } : user.id,
                 AND: [visivelNaCompetencia],
               },
             },
