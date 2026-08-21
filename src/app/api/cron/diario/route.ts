@@ -2,21 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { calcularVencimento, formatData } from "@/lib/utils";
 import { SETOR_RESP_FIELD } from "@/lib/auth";
+import { STATUS_EMPRESA_GERA_OBRIGACAO } from "@/lib/obrigacoes";
 import {
   enviarEmail,
-  emailAlertaObrigacaoHtml,
+  emailDigestObrigacoesSetorHtml,
+  emailAlertaCarteiraSemResponsavelHtml,
   emailRelatorioHorasIndividualHtml,
   emailRelatorioHorasComparativoHtml,
-  resolverDestinatariosGrupo,
+  membrosAtivosDoSetor,
 } from "@/lib/mail";
 
 // GET/POST /api/cron/diario — chamado uma vez por dia pelo Vercel Cron.
-// Faz duas coisas:
-// 1. Todo dia: alerta de obrigação vencendo em 7 dias, e alerta de
-//    obrigação que acabou de entrar em atraso.
-// 2. Só às segundas-feiras: relatório individual de horas (semana
-//    anterior) pra cada operador, e relatório comparativo pra Diretoria e
-//    pros supervisores de cada setor.
+// Faz, cada um sujeito ao seu próprio "ativo" em Configurações > Automações:
+// 1. Todo dia: digest de obrigações pendentes (em atraso + vencendo dentro
+//    da janela configurada) pra TODOS do setor, e alerta de empresa ativa
+//    sem responsável pros supervisores de cada setor.
+// 2. No dia da semana configurado (por padrão, segunda): relatório
+//    individual de horas (semana anterior) pra cada operador, e relatório
+//    comparativo pra Diretoria e pros supervisores de cada setor.
 //
 // O Vercel manda automaticamente "Authorization: Bearer $CRON_SECRET"
 // quando a env var se chama exatamente CRON_SECRET - por isso o endpoint
@@ -31,29 +34,41 @@ function autorizado(req: NextRequest): boolean {
 }
 
 const BASE_URL = process.env.NEXTAUTH_URL || "";
-const DIAS_ANTECEDENCIA_VENCIMENTO = 7;
 
-async function alertarObrigacoes() {
+const CONFIG_PADRAO = {
+  diasAntecedenciaVencimento: 7,
+  alertaObrigacoesAtivo: true,
+  alertaCarteiraSemRespAtivo: true,
+  relatorioIndividualAtivo: true,
+  relatorioIndividualDiaSemana: 1,
+  relatorioComparativoAtivo: true,
+  relatorioComparativoDiaSemana: 1,
+};
+
+async function buscarConfig() {
+  const config = await prisma.configuracaoAutomacao.findUnique({ where: { id: "config" } });
+  return config ?? CONFIG_PADRAO;
+}
+
+// Digest diário: pra cada setor, lista todas as obrigações em atraso ou
+// vencendo dentro de `diasAntecedencia` dias, e manda pra TODOS do setor
+// (não só o responsável e os supervisores) numa listagem só.
+async function digestObrigacoesPorSetor(diasAntecedencia: number) {
   const hoje = new Date();
   const hojeUtc = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate()));
 
   const candidatas = await prisma.obrigacaoInstancia.findMany({
-    where: {
-      status: { notIn: ["CONCLUIDO", "NAO_SE_APLICA"] },
-      OR: [{ alertaVencimentoEnviado: false }, { alertaAtrasoEnviado: false }],
-    },
+    where: { status: { notIn: ["CONCLUIDO", "NAO_SE_APLICA"] } },
     select: {
       id: true,
       competencia: true,
       status: true,
-      alertaVencimentoEnviado: true,
-      alertaAtrasoEnviado: true,
       obrigacaoEmpresa: {
         select: {
           empresaId: true,
           empresa: {
             select: {
-              codigoInterno: true, razaoSocial: true, deletedAt: true, ativo: true,
+              codigoInterno: true, razaoSocial: true, deletedAt: true, ativo: true, status: true,
               respFiscalId: true, respContabilId: true, respDpId: true, respSocietId: true,
             },
           },
@@ -65,58 +80,105 @@ async function alertarObrigacoes() {
     },
   });
 
-  let enviados = 0;
+  type Item = { empresa: string; obrigacao: string; vencimento: string; diasRestantes: number; atrasada: boolean; responsavelId: string | null };
+  const porSetor = new Map<string, { setorNome: string; itens: Item[] }>();
 
   for (const inst of candidatas) {
     const empresa = inst.obrigacaoEmpresa.empresa;
     if (!empresa.ativo || empresa.deletedAt) continue;
+    if (!STATUS_EMPRESA_GERA_OBRIGACAO.includes(empresa.status)) continue;
 
     const template = inst.obrigacaoEmpresa.template;
     const vencimento = calcularVencimento(inst.competencia, template.diaVencimento, template.vencimentoMesSeguinte);
     if (!vencimento) continue;
 
     const diasRestantes = Math.round((vencimento.getTime() - hojeUtc.getTime()) / 86_400_000);
-    const disparaVencimento = !inst.alertaVencimentoEnviado && diasRestantes === DIAS_ANTECEDENCIA_VENCIMENTO;
-    const disparaAtraso = !inst.alertaAtrasoEnviado && inst.status === "EM_ATRASO";
-    if (!disparaVencimento && !disparaAtraso) continue;
+    const atrasada = inst.status === "EM_ATRASO";
+    const dentroDaJanela = diasRestantes >= 0 && diasRestantes <= diasAntecedencia;
+    if (!atrasada && !dentroDaJanela) continue;
 
-    // Responsável específico dessa empresa nesse setor + supervisores do
-    // setor inteiro (quem oversee o departamento).
     const campoResp = SETOR_RESP_FIELD[template.setor.nome];
     const responsavelId = campoResp ? (empresa as any)[campoResp] : null;
 
-    const destinatarios = await resolverDestinatariosGrupo({
-      grupos: ["supervisores"],
-      setorId: template.setorId,
-    });
-    if (responsavelId) {
-      const resp = await prisma.usuario.findUnique({ where: { id: responsavelId }, select: { id: true, nome: true, email: true, ativo: true } });
-      if (resp?.ativo && !destinatarios.some((d) => d.id === resp.id)) destinatarios.push(resp);
-    }
-    if (destinatarios.length === 0) continue;
-
-    const html = emailAlertaObrigacaoHtml({
-      atrasada: inst.status === "EM_ATRASO",
-      nomeObrigacao: template.nome,
+    if (!porSetor.has(template.setorId)) porSetor.set(template.setorId, { setorNome: template.setor.nome, itens: [] });
+    porSetor.get(template.setorId)!.itens.push({
       empresa: `${empresa.codigoInterno} - ${empresa.razaoSocial}`,
-      setor: template.setor.nome,
+      obrigacao: template.nome,
       vencimento: formatData(vencimento),
       diasRestantes,
+      atrasada,
+      responsavelId,
+    });
+  }
+
+  let enviados = 0;
+  for (const [setorId, { setorNome, itens }] of porSetor) {
+    if (itens.length === 0) continue;
+
+    const respIds = Array.from(new Set(itens.map((i) => i.responsavelId).filter(Boolean))) as string[];
+    const responsaveis = respIds.length > 0
+      ? await prisma.usuario.findMany({ where: { id: { in: respIds } }, select: { id: true, nome: true } })
+      : [];
+    const nomePorId = new Map(responsaveis.map((r) => [r.id, r.nome]));
+    const itensComNome = itens.map((i) => ({ ...i, responsavel: i.responsavelId ? nomePorId.get(i.responsavelId) ?? null : null }));
+
+    const destinatarios = await membrosAtivosDoSetor(setorId);
+    if (destinatarios.length === 0) continue;
+
+    const html = emailDigestObrigacoesSetorHtml({
+      setor: setorNome,
+      itens: itensComNome,
       url: `${BASE_URL}/obrigacoes`,
     });
-    const assunto = `${inst.status === "EM_ATRASO" ? "Em atraso" : "Vence em 7 dias"}: ${template.nome} - ${empresa.razaoSocial}`;
+    const atrasadasCount = itens.filter((i) => i.atrasada).length;
+    const assunto = `${itens.length} obrigação(ões) pendente(s) - ${setorNome}${atrasadasCount > 0 ? ` (${atrasadasCount} em atraso)` : ""}`;
     for (const d of destinatarios) {
       await enviarEmail({ para: d.email, assunto, html });
+      enviados++;
     }
+  }
 
-    await prisma.obrigacaoInstancia.update({
-      where: { id: inst.id },
-      data: {
-        alertaVencimentoEnviado: disparaVencimento ? true : inst.alertaVencimentoEnviado,
-        alertaAtrasoEnviado: disparaAtraso ? true : inst.alertaAtrasoEnviado,
+  return enviados;
+}
+
+// Alerta pros supervisores de cada setor: empresa ativa sem ninguém
+// atribuído como responsável naquele setor (buraco na carteira).
+async function alertarCarteiraSemResponsavel() {
+  const setores = await prisma.setor.findMany({ where: { ativo: true }, select: { id: true, nome: true } });
+
+  let enviados = 0;
+  for (const setor of setores) {
+    const campo = SETOR_RESP_FIELD[setor.nome];
+    if (!campo) continue; // setor sem campo de responsável correspondente na Empresa
+
+    const empresasSemResp = await prisma.empresa.findMany({
+      where: {
+        ativo: true,
+        deletedAt: null,
+        status: { in: STATUS_EMPRESA_GERA_OBRIGACAO },
+        [campo]: null,
       },
+      select: { codigoInterno: true, razaoSocial: true },
+      orderBy: { codigoInterno: "asc" },
     });
-    enviados++;
+    if (empresasSemResp.length === 0) continue;
+
+    const supervisores = await prisma.usuarioSetor.findMany({
+      where: { setorId: setor.id, papel: "supervisor", usuario: { ativo: true } },
+      select: { usuario: { select: { id: true, nome: true, email: true } } },
+    });
+    if (supervisores.length === 0) continue;
+
+    const html = emailAlertaCarteiraSemResponsavelHtml({
+      setor: setor.nome,
+      empresas: empresasSemResp.map((e) => ({ codigo: e.codigoInterno, razaoSocial: e.razaoSocial })),
+      url: `${BASE_URL}/empresas`,
+    });
+    const assunto = `${empresasSemResp.length} empresa(s) sem responsável - ${setor.nome}`;
+    for (const s of supervisores) {
+      await enviarEmail({ para: s.usuario.email, assunto, html });
+      enviados++;
+    }
   }
 
   return enviados;
@@ -276,14 +338,26 @@ async function handler(req: NextRequest) {
   if (!autorizado(req))
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
+  const config = await buscarConfig();
   const resultado: Record<string, number> = {};
-  resultado.alertasObrigacoes = await alertarObrigacoes();
+
+  if (config.alertaObrigacoesAtivo) {
+    resultado.digestObrigacoes = await digestObrigacoesPorSetor(config.diasAntecedenciaVencimento);
+  }
+  if (config.alertaCarteiraSemRespAtivo) {
+    resultado.alertaCarteiraSemResp = await alertarCarteiraSemResponsavel();
+  }
 
   const hoje = new Date();
-  const ehSegunda = hoje.getUTCDay() === 1;
-  if (ehSegunda || req.nextUrl.searchParams.get("forcarRelatorios") === "true") {
+  const diaSemana = hoje.getUTCDay();
+  const forcar = req.nextUrl.searchParams.get("forcarRelatorios") === "true";
+
+  if (config.relatorioIndividualAtivo && (diaSemana === config.relatorioIndividualDiaSemana || forcar)) {
     const { de, ate, label } = semanaAnterior();
     resultado.relatoriosIndividuais = await relatoriosIndividuais(de, ate, label);
+  }
+  if (config.relatorioComparativoAtivo && (diaSemana === config.relatorioComparativoDiaSemana || forcar)) {
+    const { de, ate, label } = semanaAnterior();
     resultado.relatorioComparativo = await relatorioComparativo(de, ate, label);
   }
 

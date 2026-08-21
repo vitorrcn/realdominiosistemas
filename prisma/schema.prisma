@@ -269,7 +269,25 @@ model Contabil {
   updatedAt           DateTime  @updatedAt
   empresa Empresa      @relation(fields: [empresaId], references: [id])
   ramo    RamoEmpresa? @relation(fields: [ramoId], references: [id])
+  contasBancarias ContaBancaria[]
   @@map("contabil")
+}
+
+// Registro de cada conta bancaria do cliente - qual banco, ate onde ja
+// temos o extrato conferido, e se a conta ainda esta ativa.
+model ContaBancaria {
+  id           String    @id @default(uuid())
+  contabilId   String
+  banco        String
+  agencia      String?
+  numeroConta  String?
+  ativa        Boolean   @default(true)
+  extratoAte   DateTime?
+  observacoes  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  contabil     Contabil  @relation(fields: [contabilId], references: [id])
+  @@map("contas_bancarias")
 }
 
 model RamoEmpresa {
@@ -519,10 +537,6 @@ model ObrigacaoInstancia {
   status             StatusObrigacao @default(NAO_INICIADO)
   dataConclusao      DateTime?
   observacao         String?
-  // Controle pra nao mandar o mesmo alerta de e-mail duas vezes (o cron
-  // roda todo dia) - cada um dispara uma vez so por instancia.
-  alertaVencimentoEnviado Boolean    @default(false)
-  alertaAtrasoEnviado     Boolean    @default(false)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   obrigacaoEmpresa ObrigacaoEmpresa @relation(fields: [obrigacaoEmpresaId], references: [id])
@@ -621,6 +635,27 @@ model ConfiguracaoEmail {
   atualizadoPorId    String?
   updatedAt          DateTime @updatedAt
   @@map("configuracao_email")
+}
+
+// Configuracao unica (singleton, igual ConfiguracaoEmail) dos alertas e
+// relatorios automaticos por e-mail - tudo editavel pela Diretoria em
+// Configuracoes > Automacoes, sem precisar mexer em codigo.
+model ConfiguracaoAutomacao {
+  id                            String   @id @default("config")
+  diasAntecedenciaVencimento    Int      @default(7)
+  alertaObrigacoesAtivo         Boolean  @default(true)
+  alertaCarteiraSemRespAtivo    Boolean  @default(true)
+  relatorioIndividualAtivo      Boolean  @default(true)
+  // 0=domingo, 1=segunda, ... 6=sabado (mesma convencao do JS Date.getUTCDay())
+  relatorioIndividualDiaSemana  Int      @default(1)
+  relatorioComparativoAtivo     Boolean  @default(true)
+  relatorioComparativoDiaSemana Int      @default(1)
+  // Lista de e-mails que recebem copia (CC) de TODO e-mail automatico do
+  // sistema, separados por virgula.
+  copiaEmailsFixos              String?
+  atualizadoPorId                String?
+  updatedAt                      DateTime @updatedAt
+  @@map("configuracao_automacao")
 }
 
 model Notificacao {

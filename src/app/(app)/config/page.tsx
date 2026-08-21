@@ -43,6 +43,12 @@ const itens = [
     titulo: "E-mail",
     desc: "Conta que dispara os avisos automáticos de tarefas e eventos",
   },
+  {
+    href: "/config/automacao",
+    icon: "🔔",
+    titulo: "Automações e alertas",
+    desc: "Prazo de antecedência, dia dos relatórios e cópia fixa dos e-mails automáticos",
+  },
 ];
 
 export default function ConfigPage() {

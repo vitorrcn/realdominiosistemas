@@ -19,16 +19,35 @@ export async function getTransporter() {
   };
 }
 
+// Lista fixa de e-mails que entram em cópia (CC) em TODO e-mail automático
+// do sistema — configurável em Configurações > Automações e alertas.
+async function copiaFixaEmails(): Promise<string[]> {
+  const { prisma } = await import("@/lib/prisma");
+  try {
+    const config = await prisma.configuracaoAutomacao.findUnique({ where: { id: "config" } });
+    if (!config?.copiaEmailsFixos) return [];
+    return config.copiaEmailsFixos
+      .split(/[,;\n]/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+  } catch (e) {
+    console.error("Erro ao buscar cópia fixa de e-mails:", e);
+    return [];
+  }
+}
+
 export async function enviarEmail(params: { para: string; assunto: string; texto?: string; html?: string }) {
   const conf = await getTransporter();
   if (!conf) {
     console.log(`[e-mail não configurado ainda] Para: ${params.para} — ${params.assunto}`);
     return;
   }
+  const cc = (await copiaFixaEmails()).filter((e) => e.toLowerCase() !== params.para.toLowerCase());
   try {
     await conf.transporter.sendMail({
       from: `"Real Domínio - Sistema" <${conf.remetente}>`,
       to: params.para,
+      cc: cc.length > 0 ? cc : undefined,
       subject: params.assunto,
       text: params.texto ?? " ",
       html: params.html,
@@ -187,6 +206,25 @@ export async function resolverDestinatariosGrupo(params: {
   });
 }
 
+// Todo mundo do setor, independente do papel (membro ou supervisor) —
+// usado no digest diário de obrigações, que precisa avisar o setor
+// inteiro, não só quem é responsável ou supervisor.
+export async function membrosAtivosDoSetor(setorId: string): Promise<{ id: string; nome: string; email: string }[]> {
+  const { prisma } = await import("@/lib/prisma");
+  const membros = await prisma.usuarioSetor.findMany({
+    where: { setorId, usuario: { ativo: true } },
+    select: { usuario: { select: { id: true, nome: true, email: true } } },
+  });
+  const vistos = new Set<string>();
+  const lista: { id: string; nome: string; email: string }[] = [];
+  for (const m of membros) {
+    if (vistos.has(m.usuario.id)) continue;
+    vistos.add(m.usuario.id);
+    lista.push(m.usuario);
+  }
+  return lista;
+}
+
 // ── Templates de e-mail (HTML) ──────────────────────────────────────
 
 function envelopeHtml(preheader: string, corpoHtml: string): string {
@@ -289,6 +327,70 @@ export function emailAlertaObrigacaoHtml(p: {
     <a href="${p.url}" style="display:inline-block;margin-top:20px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver no sistema</a>
   `;
   return envelopeHtml(`${p.atrasada ? "Em atraso" : "Vence em breve"}: ${p.nomeObrigacao} - ${p.empresa}`, corpo);
+}
+
+// Digest diário enviado a TODOS do setor (não só o responsável e os
+// supervisores) — uma listagem única com todas as empresas pendentes
+// (em atraso ou vencendo dentro da janela configurada) daquele setor.
+export function emailDigestObrigacoesSetorHtml(p: {
+  setor: string;
+  itens: { empresa: string; obrigacao: string; vencimento: string; diasRestantes: number; atrasada: boolean; responsavel: string | null }[];
+  url: string;
+}): string {
+  const atrasadas = p.itens.filter((i) => i.atrasada);
+  const proximas = p.itens.filter((i) => !i.atrasada);
+
+  function linha(i: (typeof p.itens)[number]) {
+    const cor = i.atrasada ? "#dc2626" : "#d97706";
+    return `<tr>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#111827;font-size:13px;">${i.empresa}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#111827;font-size:13px;">${i.obrigacao}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#6b7280;font-size:12px;">${i.responsavel ?? "Sem responsável"}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;font-size:12px;text-align:right;color:${cor};font-weight:700;white-space:nowrap;">${i.atrasada ? "Em atraso" : `${i.vencimento} (${i.diasRestantes}d)`}</td>
+    </tr>`;
+  }
+
+  const corpo = `
+    ${badge("RESUMO DE OBRIGAÇÕES", "#d97706")}
+    <h2 style="margin:12px 0 4px;color:#111827;font-size:18px;">Obrigações pendentes - ${p.setor}</h2>
+    <p style="margin:0 0 18px;color:#6b7280;font-size:12.5px;">
+      ${atrasadas.length} em atraso e ${proximas.length} vencendo em breve.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Cliente</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Obrigação</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Responsável</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;text-align:right;">Situação</td>
+      </tr>
+      ${[...atrasadas, ...proximas].map(linha).join("")}
+    </table>
+    <a href="${p.url}" style="display:inline-block;margin-top:20px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver obrigações no sistema</a>
+  `;
+  return envelopeHtml(`${p.itens.length} obrigação(ões) pendente(s) - ${p.setor}`, corpo);
+}
+
+// Alerta pros supervisores de um setor: empresas ativas que não têm
+// ninguém atribuído como responsável naquele setor (buraco na carteira).
+export function emailAlertaCarteiraSemResponsavelHtml(p: {
+  setor: string;
+  empresas: { codigo: string; razaoSocial: string }[];
+  url: string;
+}): string {
+  const corpo = `
+    ${badge("CARTEIRA SEM RESPONSÁVEL", "#dc2626")}
+    <h2 style="margin:12px 0 4px;color:#111827;font-size:18px;">Empresas ativas sem responsável - ${p.setor}</h2>
+    <p style="margin:0 0 18px;color:#6b7280;font-size:12.5px;">
+      ${p.empresas.length} empresa(s) ativa(s) sem ninguém atribuído no setor ${p.setor}.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${p.empresas
+        .map((e) => `<tr><td style="padding:6px 0;border-top:1px solid #f1f2f4;color:#111827;font-size:13px;">${e.codigo} - ${e.razaoSocial}</td></tr>`)
+        .join("")}
+    </table>
+    <a href="${p.url}" style="display:inline-block;margin-top:20px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver clientes no sistema</a>
+  `;
+  return envelopeHtml(`${p.empresas.length} empresa(s) sem responsável - ${p.setor}`, corpo);
 }
 
 export function emailRelatorioHorasIndividualHtml(p: {

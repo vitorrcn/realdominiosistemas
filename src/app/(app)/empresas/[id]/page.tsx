@@ -541,11 +541,177 @@ function AbaContabil({ empresa, salvar, salvando }: any) {
         </div>
       </div>
 
+      <ContasBancariasSetor empresaId={empresa.id} />
       <AcessosSetor empresaId={empresa.id} setorNome="Contábil" />
       <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Contábil" />
 
       <BotaoSalvar salvando={salvando} />
     </form>
+  );
+}
+
+// ── Contas bancárias do cliente (aba Contábil) ────────────────────
+// Registro de cada conta bancária: banco, agência/número, até onde já
+// temos o extrato conferido e se a conta ainda está ativa.
+function ContasBancariasSetor({ empresaId }: { empresaId: string }) {
+  const { data: session } = useSession();
+  const perfil = (session?.user as any)?.perfilGlobal ?? "";
+  const podeEditar = !!perfil;
+
+  const vazio = { banco: "", agencia: "", numeroConta: "", ativa: true, extratoAte: "", observacoes: "" };
+
+  const [contas, setContas] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [form, setForm] = useState(vazio);
+  const [salvando, setSalvando] = useState(false);
+
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    const res = await fetch(`/api/empresas/${empresaId}/contas-bancarias`);
+    if (res.ok) setContas(await res.json());
+    setCarregando(false);
+  }, [empresaId]);
+
+  useEffect(() => { buscar(); }, [buscar]);
+
+  function abrirNovo() {
+    setEditandoId(null);
+    setForm(vazio);
+    setMostrarForm(true);
+  }
+
+  function abrirEdicao(c: any) {
+    setEditandoId(c.id);
+    setForm({
+      banco: c.banco,
+      agencia: c.agencia ?? "",
+      numeroConta: c.numeroConta ?? "",
+      ativa: c.ativa,
+      extratoAte: c.extratoAte?.slice(0, 10) ?? "",
+      observacoes: c.observacoes ?? "",
+    });
+    setMostrarForm(true);
+  }
+
+  // Nota: isso roda dentro do <form> maior da aba Contábil (AbaContabil),
+  // então esse bloco usa <div> em vez de <form> pra não aninhar
+  // <form> dentro de <form> (HTML inválido e quebra a hidratação do React).
+  async function salvarConta() {
+    if (!form.banco) return;
+    setSalvando(true);
+    const url = editandoId
+      ? `/api/empresas/${empresaId}/contas-bancarias/${editandoId}`
+      : `/api/empresas/${empresaId}/contas-bancarias`;
+    const res = await fetch(url, {
+      method: editandoId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    setSalvando(false);
+    if (res.ok) {
+      setMostrarForm(false);
+      setEditandoId(null);
+      setForm(vazio);
+      buscar();
+    }
+  }
+
+  async function excluir(id: string) {
+    if (!confirm("Excluir esta conta bancária?")) return;
+    await fetch(`/api/empresas/${empresaId}/contas-bancarias/${id}`, { method: "DELETE" });
+    buscar();
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900">Contas bancárias</h3>
+        {podeEditar && !mostrarForm && (
+          <button type="button" onClick={abrirNovo} className="text-xs text-brand-600 hover:underline">
+            + Adicionar conta
+          </button>
+        )}
+      </div>
+
+      {carregando ? (
+        <p className="text-xs text-gray-400">Carregando...</p>
+      ) : contas.length === 0 ? (
+        <p className="text-xs text-gray-400">Nenhuma conta bancária cadastrada ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {contas.map((c) => (
+            <div key={c.id} className="flex items-start justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                  {c.banco}
+                  <span className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                    c.ativa ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  )}>
+                    {c.ativa ? "ATIVA" : "INATIVA"}
+                  </span>
+                </div>
+                {(c.agencia || c.numeroConta) && (
+                  <div className="text-xs text-gray-500">
+                    {c.agencia && <>Agência: {c.agencia}{c.numeroConta ? " · " : ""}</>}
+                    {c.numeroConta && <>Conta: {c.numeroConta}</>}
+                  </div>
+                )}
+                <div className="text-xs text-gray-500">
+                  Extrato conferido até: {c.extratoAte ? formatData(c.extratoAte) : "não informado"}
+                </div>
+                {c.observacoes && <div className="text-xs text-gray-400 mt-0.5">{c.observacoes}</div>}
+              </div>
+              {podeEditar && (
+                <div className="flex gap-2 flex-shrink-0">
+                  <button type="button" onClick={() => abrirEdicao(c)} className="text-xs text-brand-600 hover:underline">
+                    Editar
+                  </button>
+                  <button type="button" onClick={() => excluir(c.id)} className="text-xs text-red-500 hover:underline">
+                    Excluir
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {mostrarForm && podeEditar && (
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <input className="input text-sm" placeholder="Banco"
+              value={form.banco} onChange={(e) => setForm((p) => ({ ...p, banco: e.target.value }))} />
+            <input className="input text-sm" placeholder="Agência"
+              value={form.agencia} onChange={(e) => setForm((p) => ({ ...p, agencia: e.target.value }))} />
+            <input className="input text-sm" placeholder="Número da conta"
+              value={form.numeroConta} onChange={(e) => setForm((p) => ({ ...p, numeroConta: e.target.value }))} />
+            <div>
+              <label className="text-xs text-gray-500">Extrato conferido até</label>
+              <input className="input text-sm" type="date"
+                value={form.extratoAte} onChange={(e) => setForm((p) => ({ ...p, extratoAte: e.target.value }))} />
+            </div>
+            <input className="input text-sm md:col-span-2" placeholder="Observações"
+              value={form.observacoes} onChange={(e) => setForm((p) => ({ ...p, observacoes: e.target.value }))} />
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
+              checked={form.ativa} onChange={(e) => setForm((p) => ({ ...p, ativa: e.target.checked }))} />
+            <span className="text-sm text-gray-700">Conta ativa</span>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={salvarConta} disabled={salvando || !form.banco} className="btn btn-primary btn-sm">
+              {salvando ? "Salvando..." : "Salvar conta"}
+            </button>
+            <button type="button" onClick={() => { setMostrarForm(false); setEditandoId(null); }} className="btn btn-sm">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
