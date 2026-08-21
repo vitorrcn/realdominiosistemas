@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { formatCnpj, formatCpf, formatCompetencia, competenciaAtual } from "@/lib/utils";
 import { STATUS_EMPRESA_LABEL, REGIME_LABEL, type EmpresaResumo } from "@/types";
 import { StatusEmpresa, RegimeTributario } from "@prisma/client";
@@ -17,6 +18,8 @@ const STATUS_BADGE: Record<StatusEmpresa, string> = {
 };
 
 export default function EmpresasPage() {
+  const { data: session } = useSession();
+  const isDiretoria = (session?.user as any)?.perfilGlobal === "DIRETORIA";
   const [empresas, setEmpresas] = useState<EmpresaResumo[]>([]);
   const [total, setTotal] = useState(0);
   const [carregando, setCarregando] = useState(true);
@@ -165,6 +168,14 @@ export default function EmpresasPage() {
               </svg>
               Relatório por ramo
             </Link>
+            {isDiretoria && (
+              <Link href="/relatorios/fechamento-contabil" className="btn btn-sm">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Fechamento contábil
+              </Link>
+            )}
             <Link href="/empresas/importar" className="btn btn-sm">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
