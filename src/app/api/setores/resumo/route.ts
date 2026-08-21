@@ -24,12 +24,16 @@ export async function GET(req: NextRequest) {
   if (!config)
     return NextResponse.json({ error: "Setor inválido" }, { status: 400 });
 
-  // Operador/Líder só podem ver o resumo do(s) próprio(s) setor(es)
-  if (["OPERADOR", "LIDER"].includes(user.perfilGlobal)) {
-    const meusSetores: string[] = (user.setores ?? []).map((s: any) => s.nome);
-    if (!meusSetores.includes(config.nome))
-      return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
-  }
+  // Operador/Líder só podem ver o resumo do(s) próprio(s) setor(es).
+  // Estagiário (CONSULTA) vinculado a setor(es) específico(s) também fica
+  // restrito a eles — só quem não tem NENHUM setor vinculado continua
+  // enxergando qualquer um (ajuda geral).
+  const meusSetores: string[] = (user.setores ?? []).map((s: any) => s.nome);
+  const restritoPorSetor =
+    ["OPERADOR", "LIDER"].includes(user.perfilGlobal) ||
+    (user.perfilGlobal === "CONSULTA" && meusSetores.length > 0);
+  if (restritoPorSetor && !meusSetores.includes(config.nome))
+    return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
 
   const setor = await prisma.setor.findUnique({ where: { nome: config.nome } });
   if (!setor)

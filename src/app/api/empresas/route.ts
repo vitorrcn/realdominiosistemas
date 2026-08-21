@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira, setoresQueSupervisiona, SETOR_RESP_FIELD } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresComCarteiraCompleta, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusEmpresa, RegimeTributario, Prisma } from "@prisma/client";
 
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
       { respSocietId: user.id },
       { respLiderId: user.id },
     ];
-    for (const nomeSetor of setoresQueSupervisiona(user.setores ?? [])) {
+    for (const nomeSetor of setoresComCarteiraCompleta(user.perfilGlobal, user.setores ?? [])) {
       const campo = SETOR_RESP_FIELD[nomeSetor];
       if (campo) condicoes.push({ [campo]: { not: null } });
     }

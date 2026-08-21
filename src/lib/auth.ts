@@ -125,19 +125,33 @@ export function setoresQueSupervisiona(setores: SetorUsuario[]): string[] {
   return (setores ?? []).filter((s) => s.papel === "supervisor").map((s) => s.nome);
 }
 
+// Setores em que a pessoa enxerga a carteira INTEIRA (todas as empresas
+// daquele setor, não uma carteira pessoal): quem é supervisor do setor, e
+// também o Estagiário (perfil CONSULTA) vinculado a ele — ele ajuda o
+// setor inteiro, então enxerga a carteira toda em vez de ser dono de
+// clientes específicos como um Operador.
+export function setoresComCarteiraCompleta(perfil: PerfilGlobal, setores: SetorUsuario[]): string[] {
+  if (perfil === "CONSULTA") return (setores ?? []).map((s) => s.nome);
+  return setoresQueSupervisiona(setores);
+}
+
 // Filtro de empresas por carteira — aplica restrição se necessário
 export function filtroCarteira(
   usuarioId: string,
   perfil: PerfilGlobal,
   setores: SetorUsuario[]
 ) {
-  // Estagiário não tem carteira própria — vê todas, pra poder auxiliar
-  // qualquer operador. Diretoria/Coordenador também sempre veem tudo.
-  if (podeVerTudo(perfil) || perfil === "CONSULTA") return {};
-
-  const setoresSupervisionados = setoresQueSupervisiona(setores);
+  // Diretoria/Coordenador sempre veem tudo. Estagiário SEM nenhum setor
+  // vinculado também — ele ajuda geral, em qualquer carteira. Já o
+  // Estagiário vinculado a um ou mais setores fica restrito à carteira
+  // INTEIRA desse(s) setor(es), igual um supervisor (ver
+  // setoresComCarteiraCompleta abaixo).
+  if (podeVerTudo(perfil)) return {};
+  if (perfil === "CONSULTA" && (setores ?? []).length === 0) return {};
 
   // Mordomo(a)/Operador vê as empresas onde é responsável pessoalmente...
+  // (Estagiário nunca é responsável pessoal de ninguém, então essas
+  // condições nunca batem pra ele — inofensivo deixar aqui.)
   const condicoes: Record<string, any>[] = [
     { respFiscalId: usuarioId },
     { respContabilId: usuarioId },
@@ -146,9 +160,9 @@ export function filtroCarteira(
     { respCarteiraId: usuarioId },
   ];
 
-  // ...mais a carteira INTEIRA de qualquer setor que ele supervisiona
-  // (toda empresa que tenha responsável nesse setor, não só as suas).
-  for (const nomeSetor of setoresSupervisionados) {
+  // ...mais a carteira INTEIRA de qualquer setor que ele supervisiona, ou
+  // — no caso do Estagiário — qualquer setor em que ele estiver vinculado.
+  for (const nomeSetor of setoresComCarteiraCompleta(perfil, setores)) {
     const campo = SETOR_RESP_FIELD[nomeSetor];
     if (campo) condicoes.push({ [campo]: { not: null } });
   }

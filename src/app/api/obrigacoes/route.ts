@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions, filtroCarteira, setoresQueSupervisiona, SETOR_RESP_FIELD } from "@/lib/auth";
+import { authOptions, filtroCarteira, setoresComCarteiraCompleta, SETOR_RESP_FIELD } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusObrigacao, Prisma } from "@prisma/client";
 import { atualizarObrigacoesEmAtraso, empresaVisivelNaCompetenciaWhere } from "@/lib/obrigacoes";
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   // Societário) pra mostrar as obrigações onde o usuário logado é o
   // responsável — ou, se ele for supervisor daquele setor, a carteira
   // INTEIRA do setor (todas as empresas, não só as dele).
-  const setoresSupervisionados = setoresQueSupervisiona(user.setores ?? []);
+  const setoresSupervisionados = setoresComCarteiraCompleta(user.perfilGlobal, user.setores ?? []);
 
   // Some do quadro (sem apagar nada) quem já saiu antes do início desta
   // competência — é o que evita uma empresa que saiu há anos continuar

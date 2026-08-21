@@ -30,7 +30,12 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
   // o mordomo responsável (respLiderId) — só fica restrito ao próprio
   // setor nas demais empresas.
   const souMordomoDestaEmpresa = perfil === "LIDER" && empresa?.respLider?.id === meuId;
-  const restritoAoProprioSetor = ["OPERADOR", "LIDER"].includes(perfil) && !souMordomoDestaEmpresa;
+  // Estagiário (CONSULTA) vinculado a setor(es) específico(s) também fica
+  // restrito à(s) aba(s) do(s) setor(es) dele — só quem não tem nenhum
+  // setor vinculado continua vendo tudo (ajuda geral).
+  const restritoAoProprioSetor =
+    (["OPERADOR", "LIDER"].includes(perfil) && !souMordomoDestaEmpresa) ||
+    (perfil === "CONSULTA" && meusSetores.length > 0);
 
   const abasVisiveis = ABAS.filter((a) => {
     if (a.somenteComercial && !podeVerComercial) return false;

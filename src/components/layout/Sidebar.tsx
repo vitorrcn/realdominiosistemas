@@ -86,8 +86,11 @@ export function Sidebar() {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
   const isAdmin = perfil === "DIRETORIA";
-  const vetTudo = ["DIRETORIA", "COORDENADOR", "CONSULTA"].includes(perfil);
   const meusSetores: string[] = ((session?.user as any)?.setores ?? []).map((s: any) => s.nome);
+  // Estagiário (CONSULTA) sem nenhum setor vinculado ajuda geral e continua
+  // vendo todos os setores no menu; vinculado a um ou mais, fica restrito
+  // a eles — igual Operador/Mordomo(a).
+  const vetTudo = ["DIRETORIA", "COORDENADOR"].includes(perfil) || (perfil === "CONSULTA" && meusSetores.length === 0);
 
   return (
     <aside className="w-60 flex-shrink-0 bg-ink-900 border-r border-white/10 flex flex-col h-full">
