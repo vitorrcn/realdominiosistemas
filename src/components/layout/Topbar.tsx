@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { formatData } from "@/lib/utils";
+import { NotaPessoal } from "./NotaPessoal";
 
 const TITULOS: Record<string, string> = {
   "/dashboard":  "Dashboard",
@@ -94,6 +95,8 @@ export function Topbar() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
         </svg>
       </button>
+
+      <NotaPessoal />
 
       {/* Notificações */}
       <div className="relative" ref={menuRef}>

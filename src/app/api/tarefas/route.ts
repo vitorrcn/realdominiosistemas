@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { filtroCarteira } from "@/lib/auth";
-import { avisarEquipeDoSetor } from "@/lib/mail";
+import { avisarEquipeDoSetor, resolverDestinatariosGrupo, emailNovaTarefaHtml, enviarEmail, GrupoEmail } from "@/lib/mail";
 
 // GET /api/tarefas?status=&setorId=&empresaId=&minhaCarteira=true&minhas=true
 export async function GET(req: NextRequest) {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { empresaId, titulo, descricao, setorId, responsavelId, dataInicio, prazo } = body;
+    const { empresaId, titulo, descricao, setorId, responsavelId, dataInicio, prazo, enviarEmail: querEmail, gruposEmail } = body;
 
     if (!empresaId || !titulo)
       return NextResponse.json({ error: "Empresa e título são obrigatórios" }, { status: 400 });
@@ -124,6 +124,39 @@ export async function POST(req: NextRequest) {
         entidadeTipo: "tarefa",
         entidadeId: tarefa.id,
       });
+    }
+
+    // Envio de e-mail opcional pra grupos escolhidos na criação (além do
+    // aviso automático ao responsável/líderes/coordenadores acima).
+    if (querEmail && Array.isArray(gruposEmail) && gruposEmail.length > 0) {
+      try {
+        const [empresa, setor, responsavel] = await Promise.all([
+          prisma.empresa.findUnique({ where: { id: empresaId }, select: { codigoInterno: true, razaoSocial: true } }),
+          setorId ? prisma.setor.findUnique({ where: { id: setorId }, select: { nome: true } }) : null,
+          responsavelId ? prisma.usuario.findUnique({ where: { id: responsavelId }, select: { nome: true } }) : null,
+        ]);
+        const destinatarios = await resolverDestinatariosGrupo({
+          grupos: gruposEmail as GrupoEmail[],
+          setorId: setorId || null,
+          empresaId,
+          excluirUsuarioId: user.id,
+        });
+        const html = emailNovaTarefaHtml({
+          titulo,
+          empresa: empresa ? `${empresa.codigoInterno} - ${empresa.razaoSocial}` : "-",
+          setor: setor?.nome ?? null,
+          responsavel: responsavel?.nome ?? null,
+          prazo: prazo ? new Date(prazo).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : null,
+          descricao: descricao || null,
+          criadoPor: user.name ?? "Sistema",
+          url: `${process.env.NEXTAUTH_URL || ""}/tarefas`,
+        });
+        for (const d of destinatarios) {
+          await enviarEmail({ para: d.email, assunto: `Nova tarefa: ${titulo}`, html });
+        }
+      } catch (e) {
+        console.error("Erro ao enviar e-mail de nova tarefa:", e);
+      }
     }
 
     return NextResponse.json(tarefa, { status: 201 });

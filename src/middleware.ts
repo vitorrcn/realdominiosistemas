@@ -33,7 +33,14 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      // Rotas de cron (chamadas pelo Vercel Cron ou manualmente com o
+      // header de segredo, sem sessão de usuário nenhuma) fazem a própria
+      // checagem via CRON_SECRET dentro da rota - liberadas aqui pra não
+      // caírem no redirect de login do NextAuth antes de chegar lá.
+      authorized: ({ token, req }) => {
+        if (req.nextUrl.pathname.startsWith("/api/cron/")) return true;
+        return !!token;
+      },
     },
   }
 );

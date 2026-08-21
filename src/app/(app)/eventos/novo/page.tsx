@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SeletorGruposEmail } from "@/components/ui/SeletorGruposEmail";
 
 export default function NovoEventoPage() {
   const router = useRouter();
@@ -23,6 +24,8 @@ export default function NovoEventoPage() {
     prazo: "",
     observacoes: "",
   });
+  const [enviarEmail, setEnviarEmail] = useState(false);
+  const [gruposEmail, setGruposEmail] = useState<string[]>([]);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.ok ? r.json() : []).then(setSetores).catch(() => {});
@@ -49,7 +52,7 @@ export default function NovoEventoPage() {
     const res = await fetch("/api/eventos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...form, empresaId: empresaEscolhida.id }),
+      body: JSON.stringify({ ...form, empresaId: empresaEscolhida.id, enviarEmail, gruposEmail }),
     });
 
     if (res.ok) {
@@ -126,6 +129,13 @@ export default function NovoEventoPage() {
             <textarea className="input min-h-[80px]" value={form.observacoes} onChange={(e) => set("observacoes", e.target.value)} />
           </div>
         </div>
+
+        <SeletorGruposEmail
+          enviarEmail={enviarEmail}
+          grupos={gruposEmail}
+          onMudarEnviar={setEnviarEmail}
+          onMudarGrupos={setGruposEmail}
+        />
 
         {erro && (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">

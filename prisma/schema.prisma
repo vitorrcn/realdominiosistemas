@@ -30,6 +30,8 @@ model Usuario {
   perfilGlobal      PerfilGlobal @default(OPERADOR)
   ativo             Boolean      @default(true)
   podeVerComercial  Boolean      @default(false)
+  // Bloco de notas pessoal - rascunho livre, so o proprio usuario ve.
+  notaPessoal       String?      @db.Text
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   deletedAt         DateTime?
@@ -517,6 +519,10 @@ model ObrigacaoInstancia {
   status             StatusObrigacao @default(NAO_INICIADO)
   dataConclusao      DateTime?
   observacao         String?
+  // Controle pra nao mandar o mesmo alerta de e-mail duas vezes (o cron
+  // roda todo dia) - cada um dispara uma vez so por instancia.
+  alertaVencimentoEnviado Boolean    @default(false)
+  alertaAtrasoEnviado     Boolean    @default(false)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   obrigacaoEmpresa ObrigacaoEmpresa @relation(fields: [obrigacaoEmpresaId], references: [id])

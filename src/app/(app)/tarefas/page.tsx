@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { BadgeTarefa } from "@/components/ui/StatusBadge";
+import { SeletorGruposEmail } from "@/components/ui/SeletorGruposEmail";
 import { STATUS_TAREFA_LABEL } from "@/types";
 import { formatData, diasAte } from "@/lib/utils";
 
@@ -187,6 +188,8 @@ function ModalTarefa({ tarefa, setores, usuarios, onFechar, onSalvo }: {
     status: tarefa?.status ?? "NAO_INICIADO",
     motivoAtraso: tarefa?.motivoAtraso ?? "",
   });
+  const [enviarEmail, setEnviarEmail] = useState(false);
+  const [gruposEmail, setGruposEmail] = useState<string[]>([]);
 
   useEffect(() => {
     if (!buscaEmpresa || empresaEscolhida) { setResultados([]); return; }
@@ -209,7 +212,7 @@ function ModalTarefa({ tarefa, setores, usuarios, onFechar, onSalvo }: {
         })
       : await fetch("/api/tarefas", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, empresaId: empresaEscolhida.id }),
+          body: JSON.stringify({ ...form, empresaId: empresaEscolhida.id, enviarEmail, gruposEmail }),
         });
 
     setSalvando(false);
@@ -296,6 +299,15 @@ function ModalTarefa({ tarefa, setores, usuarios, onFechar, onSalvo }: {
               <label className="label">Motivo (opcional)</label>
               <input className="input" value={form.motivoAtraso} onChange={(e) => setForm((p) => ({ ...p, motivoAtraso: e.target.value }))} />
             </div>
+          )}
+
+          {!editando && (
+            <SeletorGruposEmail
+              enviarEmail={enviarEmail}
+              grupos={gruposEmail}
+              onMudarEnviar={setEnviarEmail}
+              onMudarGrupos={setGruposEmail}
+            />
           )}
 
           {erro && <p className="text-sm text-red-600">{erro}</p>}

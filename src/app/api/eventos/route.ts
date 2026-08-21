@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { filtroCarteira } from "@/lib/auth";
-import { avisarEquipeDoSetor } from "@/lib/mail";
+import { avisarEquipeDoSetor, resolverDestinatariosGrupo, emailNovoEventoHtml, enviarEmail, GrupoEmail } from "@/lib/mail";
 
 // GET /api/eventos?status=&setorId=&empresaId=&minhaCarteira=true
 export async function GET(req: NextRequest) {
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { empresaId, tipoEventoNome, setorAtualId, respAtualId, respGeralId, prazo, observacoes } = body;
+    const { empresaId, tipoEventoNome, setorAtualId, respAtualId, respGeralId, prazo, observacoes, enviarEmail: querEmail, gruposEmail } = body;
 
     if (!empresaId || !tipoEventoNome)
       return NextResponse.json({ error: "Empresa e tipo de evento são obrigatórios" }, { status: 400 });
@@ -139,6 +139,39 @@ export async function POST(req: NextRequest) {
         entidadeTipo: "evento",
         entidadeId: evento.id,
       });
+    }
+
+    // Envio de e-mail opcional pra grupos escolhidos na criação (além do
+    // aviso automático ao responsável/líderes/coordenadores acima).
+    if (querEmail && Array.isArray(gruposEmail) && gruposEmail.length > 0) {
+      try {
+        const [empresa, setor, responsavel] = await Promise.all([
+          prisma.empresa.findUnique({ where: { id: empresaId }, select: { codigoInterno: true, razaoSocial: true } }),
+          setorAtualId ? prisma.setor.findUnique({ where: { id: setorAtualId }, select: { nome: true } }) : null,
+          respAtualId ? prisma.usuario.findUnique({ where: { id: respAtualId }, select: { nome: true } }) : null,
+        ]);
+        const destinatarios = await resolverDestinatariosGrupo({
+          grupos: gruposEmail as GrupoEmail[],
+          setorId: setorAtualId || null,
+          empresaId,
+          excluirUsuarioId: user.id,
+        });
+        const html = emailNovoEventoHtml({
+          tipo: tipoEventoNome,
+          empresa: empresa ? `${empresa.codigoInterno} - ${empresa.razaoSocial}` : "-",
+          setor: setor?.nome ?? null,
+          responsavel: responsavel?.nome ?? null,
+          prazo: evento.prazo ? new Date(evento.prazo).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : null,
+          observacoes: observacoes || null,
+          criadoPor: user.name ?? "Sistema",
+          url: `${process.env.NEXTAUTH_URL || ""}/eventos/${evento.id}`,
+        });
+        for (const d of destinatarios) {
+          await enviarEmail({ para: d.email, assunto: `Novo evento: ${tipoEventoNome}`, html });
+        }
+      } catch (e) {
+        console.error("Erro ao enviar e-mail de novo evento:", e);
+      }
     }
 
     return NextResponse.json(evento, { status: 201 });
