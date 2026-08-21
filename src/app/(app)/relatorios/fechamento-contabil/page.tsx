@@ -16,6 +16,8 @@ interface Linha {
   ultimoFechamento: string | null;
   situacao: "em_dia" | "atrasado" | "sem_data";
   limiteLabel: string;
+  responsavelId: string | null;
+  responsavelNome: string | null;
 }
 
 interface Contagem { total: number; emDia: number; atrasado: number; semData: number }
@@ -43,7 +45,9 @@ export default function RelatorioFechamentoContabilPage() {
 
   const [situacaoFiltro, setSituacaoFiltro] = useState<"" | Linha["situacao"]>("");
   const [grupoFiltro, setGrupoFiltro] = useState<"" | "ativos" | "exClientes">("");
+  const [carteiraFiltro, setCarteiraFiltro] = useState("");
   const [q, setQ] = useState("");
+  const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
 
   useEffect(() => {
     fetch("/api/relatorios/fechamento-contabil")
@@ -54,6 +58,7 @@ export default function RelatorioFechamentoContabilPage() {
       .then((json) => { setLinhas(json.linhas); setResumo(json.resumo); setAnoAtual(json.anoAtual); })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
+    fetch("/api/usuarios").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
   }, []);
 
   const filtradas = useMemo(() => {
@@ -61,10 +66,19 @@ export default function RelatorioFechamentoContabilPage() {
       if (situacaoFiltro && l.situacao !== situacaoFiltro) return false;
       if (grupoFiltro === "ativos" && l.saiu) return false;
       if (grupoFiltro === "exClientes" && !l.saiu) return false;
+      if (carteiraFiltro === "sem-responsavel" && l.responsavelId) return false;
+      if (carteiraFiltro && carteiraFiltro !== "sem-responsavel" && l.responsavelId !== carteiraFiltro) return false;
       if (q && !l.razaoSocial.toLowerCase().includes(q.toLowerCase()) && !l.codigoInterno.includes(q)) return false;
       return true;
     });
-  }, [linhas, situacaoFiltro, grupoFiltro, q]);
+  }, [linhas, situacaoFiltro, grupoFiltro, carteiraFiltro, q]);
+
+  // Só entram no dropdown quem tem pelo menos um cliente nesse relatório —
+  // evita listar todo mundo do escritório, a maioria fora do Contábil.
+  const carteiras = useMemo(() => {
+    const ids = new Set(linhas.map((l) => l.responsavelId).filter(Boolean) as string[]);
+    return usuarios.filter((u) => ids.has(u.id)).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [linhas, usuarios]);
 
   async function exportarExcel() {
     setExportando(true);
@@ -75,12 +89,13 @@ export default function RelatorioFechamentoContabilPage() {
         "Cliente": l.razaoSocial,
         "Status": STATUS_EMPRESA_LABEL[l.status],
         "Situação": l.saiu ? "Ex-cliente" : "Ativo",
+        "Responsável": l.responsavelNome ?? "",
         "Último fechamento": l.ultimoFechamento ? formatData(l.ultimoFechamento) : "",
         "Exigido": l.limiteLabel,
         "Fechamento contábil": SITUACAO_LABEL[l.situacao],
       }));
       const ws = XLSX.utils.json_to_sheet(dados);
-      ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 16 }, { wch: 26 }, { wch: 16 }];
+      ws["!cols"] = [{ wch: 12 }, { wch: 40 }, { wch: 16 }, { wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 26 }, { wch: 16 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Fechamento contábil");
       XLSX.writeFile(wb, `fechamento-contabil-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -198,8 +213,14 @@ export default function RelatorioFechamentoContabilPage() {
           <option value="sem_data">Sem data</option>
         </select>
 
-        {(situacaoFiltro || grupoFiltro || q) && (
-          <button onClick={() => { setSituacaoFiltro(""); setGrupoFiltro(""); setQ(""); }} className="btn btn-sm ml-auto text-gray-400">
+        <select className="select text-sm w-52" value={carteiraFiltro} onChange={(e) => setCarteiraFiltro(e.target.value)}>
+          <option value="">Todas as carteiras</option>
+          <option value="sem-responsavel">Sem responsável</option>
+          {carteiras.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </select>
+
+        {(situacaoFiltro || grupoFiltro || carteiraFiltro || q) && (
+          <button onClick={() => { setSituacaoFiltro(""); setGrupoFiltro(""); setCarteiraFiltro(""); setQ(""); }} className="btn btn-sm ml-auto text-gray-400">
             Limpar filtros
           </button>
         )}
@@ -219,6 +240,7 @@ export default function RelatorioFechamentoContabilPage() {
                 <th style={{ width: 90 }}>Código</th>
                 <th>Cliente</th>
                 <th style={{ width: 100 }}>Status</th>
+                <th style={{ width: 130 }}>Responsável</th>
                 <th style={{ width: 110 }}>Último fechamento</th>
                 <th style={{ width: 220 }}>Exigido</th>
                 <th style={{ width: 100 }}>Fechamento</th>
@@ -226,9 +248,9 @@ export default function RelatorioFechamentoContabilPage() {
             </thead>
             <tbody>
               {carregando ? (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400">Carregando...</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Carregando...</td></tr>
               ) : filtradas.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-gray-400">Nenhum cliente encontrado</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Nenhum cliente encontrado</td></tr>
               ) : filtradas.map((l) => (
                 <tr key={l.id}>
                   <td>
@@ -243,6 +265,7 @@ export default function RelatorioFechamentoContabilPage() {
                     {l.saiu && <span className="ml-1.5 badge badge-orange text-[10px]">EX-CLIENTE</span>}
                   </td>
                   <td className="text-gray-500 text-xs">{STATUS_EMPRESA_LABEL[l.status]}</td>
+                  <td className="text-gray-500 text-xs">{l.responsavelNome ?? "—"}</td>
                   <td className="text-gray-500 text-xs">{l.ultimoFechamento ? formatData(l.ultimoFechamento) : "—"}</td>
                   <td className="text-gray-400 text-xs">{l.limiteLabel}</td>
                   <td><span className={SITUACAO_BADGE[l.situacao]}>{SITUACAO_LABEL[l.situacao]}</span></td>

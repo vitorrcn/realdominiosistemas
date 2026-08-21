@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
         status: true,
         dataSaida: true,
         contabil: { select: { ultimoFechamento: true } },
+        respContabil: { select: { id: true, nome: true } },
       },
       orderBy: { codigoInterno: "asc" },
     });
@@ -69,6 +70,8 @@ export async function GET(req: NextRequest) {
         ultimoFechamento,
         situacao,
         limiteLabel,
+        responsavelId: e.respContabil?.id ?? null,
+        responsavelNome: e.respContabil?.nome ?? null,
       };
     });
 
