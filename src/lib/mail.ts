@@ -102,9 +102,9 @@ export async function avisarResponsavel(params: {
   }
 }
 
-// Avisa o responsável direto + os Líderes daquele setor + todos os
-// Coordenadores (visão geral) — usado quando uma tarefa/evento é
-// criado e atribuído a alguém.
+// Avisa o responsável direto + os Líderes daquele setor + o(s)
+// supervisor(es) daquele setor (visão geral do departamento) — usado
+// quando uma tarefa/evento é criado e atribuído a alguém.
 export async function avisarEquipeDoSetor(params: {
   setorId: string | null;
   responsavelId: string | null;
@@ -125,13 +125,13 @@ export async function avisarEquipeDoSetor(params: {
         select: { usuarioId: true },
       });
       lideres.forEach((l) => idsParaAvisar.add(l.usuarioId));
-    }
 
-    const coordenadores = await prisma.usuario.findMany({
-      where: { perfilGlobal: "COORDENADOR", ativo: true },
-      select: { id: true },
-    });
-    coordenadores.forEach((c) => idsParaAvisar.add(c.id));
+      const supervisores = await prisma.usuarioSetor.findMany({
+        where: { setorId: params.setorId, papel: "supervisor", usuario: { ativo: true } },
+        select: { usuarioId: true },
+      });
+      supervisores.forEach((s) => idsParaAvisar.add(s.usuarioId));
+    }
 
     idsParaAvisar.delete(params.criadorId);
 

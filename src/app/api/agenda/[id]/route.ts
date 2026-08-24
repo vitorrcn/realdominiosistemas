@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 async function checarPermissao(user: any, item: { setorId: string | null; usuarioId: string | null }) {
-  if (["CONSULTA", "COORDENADOR"].includes(user.perfilGlobal)) return "Sem permissão para acessar a agenda";
+  if (user.perfilGlobal === "CONSULTA") return "Sem permissão para acessar a agenda";
   if (user.perfilGlobal === "DIRETORIA") return null;
 
   const meusSetores: string[] = (user.setores ?? []).map((s: any) => s.setorId);

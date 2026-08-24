@@ -10,7 +10,7 @@ import { formatData, diasAte } from "@/lib/utils";
 export default function EventosPage() {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeVerTudo = ["DIRETORIA", "COORDENADOR"].includes(perfil);
+  const podeVerTudo = perfil === "DIRETORIA";
 
   const [eventos, setEventos] = useState<any[]>([]);
   const [setores, setSetores] = useState<{ id: string; nome: string }[]>([]);

@@ -10,7 +10,7 @@ import { formatData, diasAte } from "@/lib/utils";
 export default function TarefasPage() {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeVerTudo = ["DIRETORIA", "COORDENADOR"].includes(perfil);
+  const podeVerTudo = perfil === "DIRETORIA";
 
   const [tarefas, setTarefas] = useState<any[]>([]);
   const [setores, setSetores] = useState<{ id: string; nome: string }[]>([]);

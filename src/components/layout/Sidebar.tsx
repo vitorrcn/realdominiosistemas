@@ -10,17 +10,17 @@ interface NavItem {
   label: string;
   icon: string;
   somenteAdmin?: boolean;
+  somenteAdminOuSupervisor?: boolean;
   escondeDeOperadorEMordomo?: boolean;
-  escondeDeCoordenadorEEstagiario?: boolean;
+  escondeDeEstagiario?: boolean;
   setorNome?: string; // se preenchido, só aparece pra quem é desse setor (Operador/Mordomo) ou tem visão geral
 }
 
 const PERFIS: Record<string, string> = {
-  DIRETORIA:   "Diretoria",
-  COORDENADOR: "Coordenador",
-  LIDER:       "Mordomo(a)",
-  OPERADOR:    "Operador",
-  CONSULTA:    "Estagiário",
+  DIRETORIA: "Diretoria",
+  LIDER:     "Mordomo(a)",
+  OPERADOR:  "Operador",
+  CONSULTA:  "Estagiário",
 };
 
 interface NavGrupo {
@@ -42,7 +42,7 @@ const navItems: NavGrupo[] = [
       { href: "/obrigacoes", label: "Obrigações",  icon: "check" },
       { href: "/eventos",    label: "Eventos",    icon: "timeline" },
       { href: "/tarefas",    label: "Tarefas",    icon: "list" },
-      { href: "/agenda",     label: "Agenda",     icon: "calendar", escondeDeCoordenadorEEstagiario: true },
+      { href: "/agenda",     label: "Agenda",     icon: "calendar", escondeDeEstagiario: true },
       { href: "/registro-horas", label: "Registro de horas", icon: "clock" },
     ],
   },
@@ -58,7 +58,7 @@ const navItems: NavGrupo[] = [
   {
     grupo: "Sistema",
     itens: [
-      { href: "/comunicados", label: "Comunicados", icon: "mail", somenteAdmin: true },
+      { href: "/comunicados", label: "Comunicados", icon: "mail", somenteAdminOuSupervisor: true },
       { href: "/backup",     label: "Backup",     icon: "download", somenteAdmin: true },
       { href: "/config",     label: "Configurações", icon: "settings", somenteAdmin: true },
     ],
@@ -88,11 +88,13 @@ export function Sidebar() {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
   const isAdmin = perfil === "DIRETORIA";
-  const meusSetores: string[] = ((session?.user as any)?.setores ?? []).map((s: any) => s.nome);
+  const setoresSessao: { nome: string; papel: string }[] = (session?.user as any)?.setores ?? [];
+  const meusSetores: string[] = setoresSessao.map((s) => s.nome);
+  const souSupervisor = setoresSessao.some((s) => s.papel === "supervisor");
   // Estagiário (CONSULTA) sem nenhum setor vinculado ajuda geral e continua
   // vendo todos os setores no menu; vinculado a um ou mais, fica restrito
   // a eles — igual Operador/Mordomo(a).
-  const vetTudo = ["DIRETORIA", "COORDENADOR"].includes(perfil) || (perfil === "CONSULTA" && meusSetores.length === 0);
+  const vetTudo = isAdmin || (perfil === "CONSULTA" && meusSetores.length === 0);
 
   return (
     <aside className="w-60 flex-shrink-0 bg-ink-900 border-r border-white/10 flex flex-col h-full">
@@ -115,8 +117,9 @@ export function Sidebar() {
             <div className="space-y-0.5">
               {grupo.itens
                 .filter((item) => !item.somenteAdmin || isAdmin)
+                .filter((item) => !item.somenteAdminOuSupervisor || isAdmin || souSupervisor)
                 .filter((item) => !item.escondeDeOperadorEMordomo || !["OPERADOR", "LIDER"].includes(perfil))
-                .filter((item) => !item.escondeDeCoordenadorEEstagiario || !["COORDENADOR", "CONSULTA"].includes(perfil))
+                .filter((item) => !item.escondeDeEstagiario || perfil !== "CONSULTA")
                 .filter((item) => !item.setorNome || vetTudo || meusSetores.includes(item.setorNome))
                 .map((item) => (
                   <Link

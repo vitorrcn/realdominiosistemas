@@ -102,10 +102,10 @@ export async function DELETE(
   if (!evento)
     return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
 
-  // Diretoria/Coordenador/Mordomo(a) podem excluir qualquer evento; qualquer
-  // outro usuário só pode excluir os eventos que ele mesmo criou.
+  // Diretoria/Mordomo(a) podem excluir qualquer evento; qualquer outro
+  // usuário só pode excluir os eventos que ele mesmo criou.
   const podeExcluir =
-    ["DIRETORIA", "COORDENADOR", "LIDER"].includes(user.perfilGlobal) ||
+    ["DIRETORIA", "LIDER"].includes(user.perfilGlobal) ||
     evento.criadoPorId === user.id;
 
   if (!podeExcluir)

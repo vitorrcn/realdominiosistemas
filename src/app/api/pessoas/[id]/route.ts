@@ -85,7 +85,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (!["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal))
+  if (user.perfilGlobal !== "DIRETORIA")
     return NextResponse.json({ error: "Sem permissão para excluir pessoas" }, { status: 403 });
 
   await prisma.pessoa.update({

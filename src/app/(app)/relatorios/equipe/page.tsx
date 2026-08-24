@@ -4,11 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 
 const PERFIS: Record<string, string> = {
-  DIRETORIA:    "Diretoria",
-  COORDENADOR:  "Coordenador",
-  LIDER:        "Mordomo(a)",
-  OPERADOR:     "Operador",
-  CONSULTA:     "Estagiário",
+  DIRETORIA: "Diretoria",
+  LIDER:     "Mordomo(a)",
+  OPERADOR:  "Operador",
+  CONSULTA:  "Estagiário",
 };
 
 interface LinhaEquipe {

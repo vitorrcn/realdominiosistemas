@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, ehSupervisorDeAlgumSetor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { enviarEmail, emailComunicadoHtml } from "@/lib/mail";
 
@@ -14,8 +14,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal !== "DIRETORIA")
-    return NextResponse.json({ error: "Restrito à Diretoria" }, { status: 403 });
+  if (user.perfilGlobal !== "DIRETORIA" && !ehSupervisorDeAlgumSetor(user.setores ?? []))
+    return NextResponse.json({ error: "Restrito à Diretoria e supervisores" }, { status: 403 });
 
   try {
     const body = await req.json();
@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     if (destinatarios.length > 500)
       return NextResponse.json({ error: "Máximo de 500 destinatários por envio" }, { status: 400 });
 
-    const html = emailComunicadoHtml({ assunto, mensagem, remetente: user.name ?? "Diretoria" });
+    const html = emailComunicadoHtml({ assunto, mensagem, remetente: user.name ?? "Real Domínio" });
 
     let enviados = 0;
     const falhas: string[] = [];

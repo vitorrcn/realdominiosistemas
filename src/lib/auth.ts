@@ -87,7 +87,7 @@ export const authOptions: NextAuthOptions = {
 // ── Helpers de permissão ─────────────────────────────────────────
 
 export function podeVerTudo(perfil: PerfilGlobal): boolean {
-  return perfil === "DIRETORIA" || perfil === "COORDENADOR";
+  return perfil === "DIRETORIA";
 }
 
 // Estagiário (perfil CONSULTA) não tem carteira própria — ele auxilia em
@@ -123,6 +123,13 @@ export const SETOR_RESP_FIELD: Record<string, "respFiscalId" | "respContabilId" 
 // nenhum acesso extra nos outros setores.
 export function setoresQueSupervisiona(setores: SetorUsuario[]): string[] {
   return (setores ?? []).filter((s) => s.papel === "supervisor").map((s) => s.nome);
+}
+
+// Supervisiona pelo menos um setor (qualquer um) — usado em telas/rotas
+// que abrem pra Diretoria + qualquer supervisor, sem importar de qual
+// setor (ex.: Comunicados).
+export function ehSupervisorDeAlgumSetor(setores: SetorUsuario[]): boolean {
+  return setoresQueSupervisiona(setores).length > 0;
 }
 
 // Setores em que a pessoa enxerga a carteira INTEIRA (todas as empresas

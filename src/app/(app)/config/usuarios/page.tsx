@@ -4,11 +4,10 @@ import { useState, useEffect } from "react";
 import { formatData } from "@/lib/utils";
 
 const PERFIS: Record<string, string> = {
-  DIRETORIA:    "Diretoria",
-  COORDENADOR:  "Coordenador",
-  LIDER:        "Mordomo(a)",
-  OPERADOR:     "Operador",
-  CONSULTA:     "Estagiário",
+  DIRETORIA: "Diretoria",
+  LIDER:     "Mordomo(a)",
+  OPERADOR:  "Operador",
+  CONSULTA:  "Estagiário",
 };
 
 const MAX_SUPERVISORES_POR_SETOR = 2;

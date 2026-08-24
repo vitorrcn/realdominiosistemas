@@ -13,9 +13,9 @@ export async function GET(req: NextRequest) {
   const user = session.user as any;
   const perfil = user.perfilGlobal;
 
-  // Coordenador e Consulta não têm acesso à tela de Agenda de jeito
-  // nenhum (só Tarefas, do jeito como já está pra eles).
-  if (["COORDENADOR", "CONSULTA"].includes(perfil)) {
+  // Estagiário não tem acesso à tela de Agenda de jeito nenhum (só
+  // Tarefas, do jeito como já está pra ele).
+  if (perfil === "CONSULTA") {
     return NextResponse.json({ error: "Sem permissão para ver a agenda" }, { status: 403 });
   }
 
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (["CONSULTA", "COORDENADOR"].includes(user.perfilGlobal))
+  if (user.perfilGlobal === "CONSULTA")
     return NextResponse.json({ error: "Sem permissão para acessar a agenda" }, { status: 403 });
 
   const body = await req.json();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, ehSupervisorDeAlgumSetor } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/comunicados/destinatarios?tipo=colaboradores|clientes&q=busca
@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal !== "DIRETORIA")
-    return NextResponse.json({ error: "Restrito à Diretoria" }, { status: 403 });
+  if (user.perfilGlobal !== "DIRETORIA" && !ehSupervisorDeAlgumSetor(user.setores ?? []))
+    return NextResponse.json({ error: "Restrito à Diretoria e supervisores" }, { status: 403 });
 
   const tipo = req.nextUrl.searchParams.get("tipo");
   const q = req.nextUrl.searchParams.get("q") || undefined;

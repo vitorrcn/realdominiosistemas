@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       if (campo) condicoes.push({ [campo]: { not: null } });
     }
     filtrosAdicionais.push({ OR: condicoes });
-  } else if (!["DIRETORIA", "COORDENADOR"].includes(user.perfilGlobal)) {
+  } else if (user.perfilGlobal !== "DIRETORIA") {
     const restricao = filtroCarteira(user.id, user.perfilGlobal, user.setores);
     if (restricao.OR) filtrosAdicionais.push(restricao);
   }

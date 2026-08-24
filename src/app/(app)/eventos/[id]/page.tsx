@@ -94,7 +94,7 @@ export default function EventoDetalhePage({ params }: { params: { id: string } }
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
   const meuId = (session?.user as any)?.id;
   const podeExcluir =
-    ["DIRETORIA", "COORDENADOR", "LIDER"].includes(perfil) ||
+    ["DIRETORIA", "LIDER"].includes(perfil) ||
     evento.criadoPor?.id === meuId;
 
   return (

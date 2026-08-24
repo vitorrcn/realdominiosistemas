@@ -33,7 +33,7 @@ interface TemplateObrigacao {
 export default function SetorResumoPage({ params }: { params: { slug: string } }) {
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeGerenciarObrigacoes = ["DIRETORIA", "COORDENADOR", "LIDER"].includes(perfil);
+  const podeGerenciarObrigacoes = ["DIRETORIA", "LIDER"].includes(perfil);
 
   const titulo = TITULOS[params.slug] ?? params.slug;
 

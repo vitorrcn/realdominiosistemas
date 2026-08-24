@@ -26,12 +26,12 @@ export async function GET(req: NextRequest) {
     if (minhas) where.responsavelId = user.id;
 
     // Operador só vê tarefas do(s) próprio(s) setor(es) — mesmo as que são
-    // de outros colegas do mesmo setor. Diretoria, Coordenador e
-    // Estagiário veem tudo (o Estagiário não tem carteira própria, ele
-    // auxilia em todas). Mordomo(a) também só vê o próprio setor, EXCETO
-    // nas empresas em que ele é o mordomo responsável, onde vê tudo,
-    // inclusive tarefas de outros setores.
-    const podeVerTudoSempre = ["DIRETORIA", "COORDENADOR", "CONSULTA"].includes(user.perfilGlobal);
+    // de outros colegas do mesmo setor. Diretoria e Estagiário veem tudo
+    // (o Estagiário não tem carteira própria, ele auxilia em todas).
+    // Mordomo(a) também só vê o próprio setor, EXCETO nas empresas em que
+    // ele é o mordomo responsável, onde vê tudo, inclusive tarefas de
+    // outros setores.
+    const podeVerTudoSempre = ["DIRETORIA", "CONSULTA"].includes(user.perfilGlobal);
     const ehMordomo = user.perfilGlobal === "LIDER";
     const restritoAoSetor = !podeVerTudoSempre;
     const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);

@@ -24,11 +24,10 @@ export async function GET(req: NextRequest) {
     if (empresaId) where.empresaId = empresaId;
 
     // Operador só vê eventos do(s) próprio(s) setor(es) — mesmo os que são
-    // de outros colegas do mesmo setor. Diretoria, Coordenador e
-    // Estagiário veem tudo. Mordomo(a) também só vê o próprio setor,
-    // EXCETO nas empresas em que ele é o mordomo responsável, onde vê
-    // eventos de qualquer setor.
-    const podeVerTudoSempre = ["DIRETORIA", "COORDENADOR", "CONSULTA"].includes(user.perfilGlobal);
+    // de outros colegas do mesmo setor. Diretoria e Estagiário veem tudo.
+    // Mordomo(a) também só vê o próprio setor, EXCETO nas empresas em que
+    // ele é o mordomo responsável, onde vê eventos de qualquer setor.
+    const podeVerTudoSempre = ["DIRETORIA", "CONSULTA"].includes(user.perfilGlobal);
     const ehMordomo = user.perfilGlobal === "LIDER";
     const restritoAoSetor = !podeVerTudoSempre;
     const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);
