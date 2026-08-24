@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, podeVerComercial } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { avisarNovaEmpresaCarteira } from "@/lib/mail";
+
+// Nome do setor de cada campo de responsável — usado pra avisar quem for
+// atribuído como novo responsável (ver bloco após o update abaixo).
+const CAMPO_SETOR_NOME: Record<"respFiscalId" | "respContabilId" | "respDpId" | "respSocietId", string> = {
+  respFiscalId: "Fiscal",
+  respContabilId: "Contábil",
+  respDpId: "Departamento Pessoal",
+  respSocietId: "Societário",
+};
 
 // GET /api/empresas/[id]
 export async function GET(
@@ -119,7 +129,7 @@ export async function PUT(
   try {
     const existente = await prisma.empresa.findUnique({
       where: { id: params.id },
-      select: { status: true },
+      select: { status: true, respFiscalId: true, respContabilId: true, respDpId: true, respSocietId: true },
     });
 
     // Campos gerais da empresa
@@ -156,6 +166,31 @@ export async function PUT(
         respLiderId:      body.respLiderId      || null,
       },
     });
+
+    // Avisa (notificação no sistema + e-mail pro operador e supervisor(es)
+    // do setor) quem foi atribuído como novo responsável em Fiscal,
+    // Contábil, DP ou Societário — só quando o campo realmente mudou pra
+    // outra pessoa, pra não notificar de novo a cada salvamento do
+    // cadastro sem trocar o responsável.
+    for (const campo of Object.keys(CAMPO_SETOR_NOME) as (keyof typeof CAMPO_SETOR_NOME)[]) {
+      const novoId = empresa[campo];
+      const antigoId = existente?.[campo] ?? null;
+      if (!novoId || novoId === antigoId) continue;
+
+      const setorNome = CAMPO_SETOR_NOME[campo];
+      const setor = await prisma.setor.findUnique({ where: { nome: setorNome }, select: { id: true } });
+      if (!setor) continue;
+
+      await avisarNovaEmpresaCarteira({
+        usuarioId: novoId,
+        setorId: setor.id,
+        setorNome,
+        empresaId: empresa.id,
+        empresaCodigo: empresa.codigoInterno,
+        empresaNome: empresa.razaoSocial,
+        url: `${process.env.NEXTAUTH_URL || ""}/empresas/${empresa.id}`,
+      });
+    }
 
     // ── Regra: avisar (sem bloquear) quando sai de "Cadastro incompleto"
     // e ainda faltam informações básicas ────────────────────────────

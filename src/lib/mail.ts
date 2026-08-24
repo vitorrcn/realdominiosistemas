@@ -149,6 +149,58 @@ export async function avisarEquipeDoSetor(params: {
   }
 }
 
+// Avisa (notificação no sistema + e-mail) quando alguém vira responsável
+// por uma empresa nova num setor (Fiscal/Contábil/DP/Societário) — o
+// e-mail vai pro próprio operador + supervisor(es) daquele setor (a cópia
+// fixa entra automaticamente via enviarEmail).
+export async function avisarNovaEmpresaCarteira(params: {
+  usuarioId: string;
+  setorId: string;
+  setorNome: string;
+  empresaId: string;
+  empresaCodigo: string;
+  empresaNome: string;
+  url: string;
+}) {
+  const { prisma } = await import("@/lib/prisma");
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: params.usuarioId },
+      select: { nome: true, email: true, ativo: true },
+    });
+    if (!usuario?.ativo) return;
+
+    const titulo = `Nova empresa na sua carteira - ${params.setorNome}`;
+    const mensagem = `${params.empresaCodigo} - ${params.empresaNome} agora é sua responsabilidade no setor ${params.setorNome}.`;
+
+    await prisma.notificacao.create({
+      data: {
+        usuarioId: params.usuarioId,
+        titulo,
+        mensagem,
+        entidadeTipo: "empresa",
+        entidadeId: params.empresaId,
+      },
+    });
+
+    const supervisores = await resolverDestinatariosGrupo({ grupos: ["supervisores"], setorId: params.setorId });
+    const destinatariosMap = new Map<string, string>();
+    if (usuario.email) destinatariosMap.set(params.usuarioId, usuario.email);
+    for (const s of supervisores) destinatariosMap.set(s.id, s.email);
+
+    const html = emailNovaEmpresaCarteiraHtml({
+      operador: usuario.nome,
+      setor: params.setorNome,
+      empresa: `${params.empresaCodigo} - ${params.empresaNome}`,
+      url: params.url,
+    });
+
+    await enviarEmail({ para: Array.from(destinatariosMap.values()), assunto: titulo, texto: mensagem, html });
+  } catch (e) {
+    console.error("Erro ao avisar nova empresa na carteira:", e);
+  }
+}
+
 // ── Grupos de destinatário (usado no "enviar e-mail" opcional de tarefas
 // e eventos, e nos alertas automáticos) ────────────────────────────────
 
@@ -216,7 +268,7 @@ export async function resolverDestinatariosGrupo(params: {
 
 // ── Templates de e-mail (HTML) ──────────────────────────────────────
 
-function envelopeHtml(preheader: string, corpoHtml: string): string {
+function envelopeHtml(preheader: string, corpoHtml: string, rodape?: string): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charSet="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /></head>
@@ -231,7 +283,7 @@ function envelopeHtml(preheader: string, corpoHtml: string): string {
         </td></tr>
         <tr><td style="padding:28px;">${corpoHtml}</td></tr>
         <tr><td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #eef0f2;">
-          <span style="color:#9ca3af;font-size:11px;">E-mail automático do sistema Real Domínio. Não responda a esta mensagem.</span>
+          <span style="color:#9ca3af;font-size:11px;">${rodape ?? "E-mail automático do sistema Real Domínio. Não responda a esta mensagem."}</span>
         </td></tr>
       </table>
     </td></tr>
@@ -257,6 +309,40 @@ function badge(texto: string, cor: string): string {
   return `<span style="display:inline-block;background:${cor}1a;color:${cor};font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;">${texto}</span>`;
 }
 
+// Escapa texto livre digitado por alguém (assunto/mensagem de comunicado)
+// antes de colocar dentro do HTML do e-mail — os outros templates usam só
+// dados já controlados pelo banco (nome de empresa, setor etc.), mas aqui
+// é texto que uma pessoa escreveu na hora.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Comunicado livre (Configurações > Comunicados) — mensagem digitada por
+// alguém da Diretoria pra colaboradores ou clientes, não um alerta
+// automático. Por isso o rodapé convida a responder em vez de dizer pra
+// não responder.
+export function emailComunicadoHtml(p: { assunto: string; mensagem: string; remetente: string }): string {
+  const paragrafos = p.mensagem
+    .split(/\n{2,}/)
+    .map((par) => `<p style="margin:0 0 14px;color:#374151;font-size:14px;line-height:1.6;white-space:pre-wrap;">${escapeHtml(par)}</p>`)
+    .join("");
+  const corpo = `
+    ${badge("COMUNICADO", "#0f172a")}
+    <h2 style="margin:12px 0 16px;color:#111827;font-size:18px;">${escapeHtml(p.assunto)}</h2>
+    ${paragrafos}
+  `;
+  return envelopeHtml(
+    p.assunto,
+    corpo,
+    `Enviado por ${escapeHtml(p.remetente)} através do sistema Real Domínio. Pode responder direto a este e-mail.`
+  );
+}
+
 export function emailNovaTarefaHtml(p: {
   titulo: string; empresa: string; setor: string | null; responsavel: string | null;
   prazo: string | null; descricao: string | null; criadoPor: string; url: string;
@@ -275,6 +361,20 @@ export function emailNovaTarefaHtml(p: {
     <a href="${p.url}" style="display:inline-block;margin-top:20px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver tarefa no sistema</a>
   `;
   return envelopeHtml(`Nova tarefa: ${p.titulo}`, corpo);
+}
+
+export function emailNovaEmpresaCarteiraHtml(p: {
+  operador: string; setor: string; empresa: string; url: string;
+}): string {
+  const corpo = `
+    ${badge("NOVA EMPRESA NA CARTEIRA", "#059669")}
+    <h2 style="margin:12px 0 4px;color:#111827;font-size:18px;">${p.empresa}</h2>
+    <p style="margin:0 0 18px;color:#6b7280;font-size:12.5px;">
+      ${p.operador} agora é o(a) responsável por esse cliente no setor ${p.setor}.
+    </p>
+    <a href="${p.url}" style="display:inline-block;margin-top:4px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver cliente no sistema</a>
+  `;
+  return envelopeHtml(`Nova empresa na carteira: ${p.empresa}`, corpo);
 }
 
 export function emailNovoEventoHtml(p: {

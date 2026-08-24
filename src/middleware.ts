@@ -10,7 +10,7 @@ export default withAuth(
     // Obs: /api/usuarios não entra aqui — a própria API já libera uma
     // lista mínima (id + nome) para outros perfis atribuírem responsáveis,
     // e bloqueia a criação/edição completa de usuários internamente.
-    const rotasDiretoria = ["/config", "/backup", "/registro-horas/relatorios", "/relatorios/equipe"];
+    const rotasDiretoria = ["/config", "/backup", "/registro-horas/relatorios", "/relatorios/equipe", "/comunicados"];
     if (rotasDiretoria.some((r) => path.startsWith(r))) {
       if (token?.perfilGlobal !== "DIRETORIA") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
