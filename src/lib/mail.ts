@@ -36,17 +36,25 @@ async function copiaFixaEmails(): Promise<string[]> {
   }
 }
 
-export async function enviarEmail(params: { para: string; assunto: string; texto?: string; html?: string }) {
+// `para` aceita um endereço só ou uma lista — nesse caso todo mundo entra
+// no MESMO e-mail (um único envio com vários destinatários), em vez de
+// mandar um e-mail separado pra cada um.
+export async function enviarEmail(params: { para: string | string[]; assunto: string; texto?: string; html?: string }) {
+  const paraLista = (Array.isArray(params.para) ? params.para : [params.para]).filter(Boolean);
+  if (paraLista.length === 0) return;
+
   const conf = await getTransporter();
   if (!conf) {
-    console.log(`[e-mail não configurado ainda] Para: ${params.para} — ${params.assunto}`);
+    console.log(`[e-mail não configurado ainda] Para: ${paraLista.join(", ")} — ${params.assunto}`);
     return;
   }
-  const cc = (await copiaFixaEmails()).filter((e) => e.toLowerCase() !== params.para.toLowerCase());
+  const cc = (await copiaFixaEmails()).filter(
+    (e) => !paraLista.some((p) => p.toLowerCase() === e.toLowerCase())
+  );
   try {
     await conf.transporter.sendMail({
       from: `"Real Domínio - Sistema" <${conf.remetente}>`,
-      to: params.para,
+      to: paraLista.join(", "),
       cc: cc.length > 0 ? cc : undefined,
       subject: params.assunto,
       text: params.texto ?? " ",
@@ -206,25 +214,6 @@ export async function resolverDestinatariosGrupo(params: {
   });
 }
 
-// Todo mundo do setor, independente do papel (membro ou supervisor) —
-// usado no digest diário de obrigações, que precisa avisar o setor
-// inteiro, não só quem é responsável ou supervisor.
-export async function membrosAtivosDoSetor(setorId: string): Promise<{ id: string; nome: string; email: string }[]> {
-  const { prisma } = await import("@/lib/prisma");
-  const membros = await prisma.usuarioSetor.findMany({
-    where: { setorId, usuario: { ativo: true } },
-    select: { usuario: { select: { id: true, nome: true, email: true } } },
-  });
-  const vistos = new Set<string>();
-  const lista: { id: string; nome: string; email: string }[] = [];
-  for (const m of membros) {
-    if (vistos.has(m.usuario.id)) continue;
-    vistos.add(m.usuario.id);
-    lista.push(m.usuario);
-  }
-  return lista;
-}
-
 // ── Templates de e-mail (HTML) ──────────────────────────────────────
 
 function envelopeHtml(preheader: string, corpoHtml: string): string {
@@ -329,9 +318,10 @@ export function emailAlertaObrigacaoHtml(p: {
   return envelopeHtml(`${p.atrasada ? "Em atraso" : "Vence em breve"}: ${p.nomeObrigacao} - ${p.empresa}`, corpo);
 }
 
-// Digest diário enviado a TODOS do setor (não só o responsável e os
-// supervisores) — uma listagem única com todas as empresas pendentes
-// (em atraso ou vencendo dentro da janela configurada) daquele setor.
+// Digest diário — uma listagem única com todas as empresas pendentes (em
+// atraso ou vencendo dentro da janela configurada) de um setor, enviada
+// num único e-mail pros responsáveis dessas empresas + supervisores do
+// setor.
 export function emailDigestObrigacoesSetorHtml(p: {
   setor: string;
   itens: { empresa: string; obrigacao: string; vencimento: string; diasRestantes: number; atrasada: boolean; responsavel: string | null }[];

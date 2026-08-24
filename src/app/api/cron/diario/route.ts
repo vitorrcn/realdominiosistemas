@@ -9,14 +9,14 @@ import {
   emailAlertaCarteiraSemResponsavelHtml,
   emailRelatorioHorasIndividualHtml,
   emailRelatorioHorasComparativoHtml,
-  membrosAtivosDoSetor,
 } from "@/lib/mail";
 
 // GET/POST /api/cron/diario — chamado uma vez por dia pelo Vercel Cron.
 // Faz, cada um sujeito ao seu próprio "ativo" em Configurações > Automações:
 // 1. Todo dia: digest de obrigações pendentes (em atraso + vencendo dentro
-//    da janela configurada) pra TODOS do setor, e alerta de empresa ativa
-//    sem responsável pros supervisores de cada setor.
+//    da janela configurada) num único e-mail por setor pros responsáveis
+//    das empresas pendentes + supervisores do setor, e alerta de empresa
+//    ativa sem responsável pros supervisores de cada setor.
 // 2. No dia da semana configurado (por padrão, segunda): relatório
 //    individual de horas (semana anterior) pra cada operador, e relatório
 //    comparativo pra Diretoria e pros supervisores de cada setor.
@@ -51,8 +51,9 @@ async function buscarConfig() {
 }
 
 // Digest diário: pra cada setor, lista todas as obrigações em atraso ou
-// vencendo dentro de `diasAntecedencia` dias, e manda pra TODOS do setor
-// (não só o responsável e os supervisores) numa listagem só.
+// vencendo dentro de `diasAntecedencia` dias, numa listagem só, e manda
+// num ÚNICO e-mail (vários destinatários, não um e-mail por pessoa) pros
+// responsáveis das empresas pendentes + supervisores do setor.
 async function digestObrigacoesPorSetor(diasAntecedencia: number) {
   const hoje = new Date();
   const hojeUtc = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate()));
@@ -117,12 +118,23 @@ async function digestObrigacoesPorSetor(diasAntecedencia: number) {
 
     const respIds = Array.from(new Set(itens.map((i) => i.responsavelId).filter(Boolean))) as string[];
     const responsaveis = respIds.length > 0
-      ? await prisma.usuario.findMany({ where: { id: { in: respIds } }, select: { id: true, nome: true } })
+      ? await prisma.usuario.findMany({ where: { id: { in: respIds }, ativo: true }, select: { id: true, nome: true, email: true } })
       : [];
     const nomePorId = new Map(responsaveis.map((r) => [r.id, r.nome]));
     const itensComNome = itens.map((i) => ({ ...i, responsavel: i.responsavelId ? nomePorId.get(i.responsavelId) ?? null : null }));
 
-    const destinatarios = await membrosAtivosDoSetor(setorId);
+    const supervisores = await prisma.usuarioSetor.findMany({
+      where: { setorId, papel: "supervisor", usuario: { ativo: true } },
+      select: { usuario: { select: { id: true, nome: true, email: true } } },
+    });
+
+    // Responsáveis das empresas pendentes + supervisores do setor, sem
+    // duplicar quem for as duas coisas ao mesmo tempo — e tudo num único
+    // e-mail (vários destinatários), não um e-mail por pessoa.
+    const destinatariosMap = new Map<string, { id: string; nome: string; email: string }>();
+    for (const r of responsaveis) destinatariosMap.set(r.id, r);
+    for (const s of supervisores) destinatariosMap.set(s.usuario.id, s.usuario);
+    const destinatarios = Array.from(destinatariosMap.values());
     if (destinatarios.length === 0) continue;
 
     const html = emailDigestObrigacoesSetorHtml({
@@ -132,10 +144,8 @@ async function digestObrigacoesPorSetor(diasAntecedencia: number) {
     });
     const atrasadasCount = itens.filter((i) => i.atrasada).length;
     const assunto = `${itens.length} obrigação(ões) pendente(s) - ${setorNome}${atrasadasCount > 0 ? ` (${atrasadasCount} em atraso)` : ""}`;
-    for (const d of destinatarios) {
-      await enviarEmail({ para: d.email, assunto, html });
-      enviados++;
-    }
+    await enviarEmail({ para: destinatarios.map((d) => d.email), assunto, html });
+    enviados++;
   }
 
   return enviados;
