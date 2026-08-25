@@ -37,6 +37,12 @@ export default withAuth(
       return NextResponse.redirect(new URL("/tarefas", req.url));
     }
 
+    // Aplicações (ferramentas internas, ex.: simulador tributário) é pra
+    // Operador + Diretoria
+    if (path.startsWith("/aplicacoes") && !["DIRETORIA", "OPERADOR"].includes(token?.perfilGlobal)) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     return NextResponse.next();
   },
   {

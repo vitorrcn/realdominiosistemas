@@ -147,3 +147,25 @@
            bg-red-50 border border-red-200 text-red-800 text-sm;
   }
 }
+
+/* Impressão de relatórios (ex.: Simulador Tributário) — o botão
+   "Imprimir / Salvar PDF" chama window.print(). Isso esconde o resto da
+   página (menu, filtros, o próprio botão) e mostra só o container marcado
+   com id="relatorio-impressao", ocupando a folha inteira. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #relatorio-impressao,
+  #relatorio-impressao * {
+    visibility: visible;
+  }
+  #relatorio-impressao {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+}

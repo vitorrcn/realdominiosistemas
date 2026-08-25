@@ -11,6 +11,7 @@ interface NavItem {
   icon: string;
   somenteAdmin?: boolean;
   somenteAdminOuSupervisor?: boolean;
+  somenteOperadorOuAdmin?: boolean;
   escondeDeOperadorEMordomo?: boolean;
   escondeDeEstagiario?: boolean;
   setorNome?: string; // se preenchido, só aparece pra quem é desse setor (Operador/Mordomo) ou tem visão geral
@@ -58,6 +59,7 @@ const navItems: NavGrupo[] = [
   {
     grupo: "Sistema",
     itens: [
+      { href: "/aplicacoes", label: "Aplicações", icon: "app", somenteOperadorOuAdmin: true },
       { href: "/comunicados", label: "Comunicados", icon: "mail", somenteAdminOuSupervisor: true },
       { href: "/backup",     label: "Backup",     icon: "download", somenteAdmin: true },
       { href: "/config",     label: "Configurações", icon: "settings", somenteAdmin: true },
@@ -79,6 +81,7 @@ const Icon = ({ name }: { name: string }) => {
     case "download": return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>;
     case "mail":     return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>;
     case "settings": return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+    case "app":      return <svg className={cls} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
     default: return null;
   }
 };
@@ -118,6 +121,7 @@ export function Sidebar() {
               {grupo.itens
                 .filter((item) => !item.somenteAdmin || isAdmin)
                 .filter((item) => !item.somenteAdminOuSupervisor || isAdmin || souSupervisor)
+                .filter((item) => !item.somenteOperadorOuAdmin || isAdmin || perfil === "OPERADOR")
                 .filter((item) => !item.escondeDeOperadorEMordomo || !["OPERADOR", "LIDER"].includes(perfil))
                 .filter((item) => !item.escondeDeEstagiario || perfil !== "CONSULTA")
                 .filter((item) => !item.setorNome || vetTudo || meusSetores.includes(item.setorNome))
