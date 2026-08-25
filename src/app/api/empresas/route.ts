@@ -36,15 +36,30 @@ export async function GET(req: NextRequest) {
   const filtrosAdicionais: Prisma.EmpresaWhereInput[] = [];
 
   if (q) {
-    filtrosAdicionais.push({
-      OR: [
-        { razaoSocial: { contains: q, mode: "insensitive" } },
-        { nomeFantasia: { contains: q, mode: "insensitive" } },
-        { cnpj: { contains: q.replace(/\D/g, "") } },
-        { cpf: { contains: q.replace(/\D/g, "") } },
-        { codigoInterno: { contains: q, mode: "insensitive" } },
-      ],
-    });
+    const qDigits = q.replace(/\D/g, "");
+    const condicoesTexto: Prisma.EmpresaWhereInput[] = [
+      { codigoInterno: { contains: q, mode: "insensitive" } },
+    ];
+    if (qDigits) {
+      condicoesTexto.push({ cnpj: { contains: qDigits } });
+      condicoesTexto.push({ cpf: { contains: qDigits } });
+    }
+
+    // Razão social/nome fantasia: busca ignorando acentuação, com a
+    // extensão "unaccent" do Postgres — muita gente digita sem acento
+    // (ex.: "confeccoes" tem que achar "Confecções"), e um simples
+    // `contains` (ILIKE) do Prisma não ignora acento, só maiúscula/minúscula.
+    const porNome = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM empresas
+      WHERE "deletedAt" IS NULL
+        AND (unaccent("razaoSocial") ILIKE unaccent(${"%" + q + "%"})
+          OR unaccent(COALESCE("nomeFantasia", '')) ILIKE unaccent(${"%" + q + "%"}))
+    `;
+    if (porNome.length > 0) {
+      condicoesTexto.push({ id: { in: porNome.map((r) => r.id) } });
+    }
+
+    filtrosAdicionais.push({ OR: condicoesTexto });
   }
 
   if (status) where.status = status;
