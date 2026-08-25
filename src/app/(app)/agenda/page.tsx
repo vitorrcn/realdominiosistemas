@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 
 interface AgendaItemDTO {
@@ -205,8 +205,9 @@ export default function AgendaPage() {
         </div>
       </div>
 
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
       {/* Grade */}
-      <div className={`grid grid-cols-7 gap-2 ${visao === "mes" ? "" : ""}`}>
+      <div className="grid grid-cols-7 gap-2 flex-1 min-w-0 w-full">
         {celulas.map((dia, i) => {
           const chave = toISODate(dia);
           const itensDoDia = itensPorDia.get(chave) ?? [];
@@ -267,6 +268,9 @@ export default function AgendaPage() {
         })}
       </div>
 
+      <PainelLembretes />
+      </div>
+
       {carregando && <p className="text-xs text-gray-400 text-center">Carregando...</p>}
 
       {modal?.aberto && (
@@ -280,6 +284,160 @@ export default function AgendaPage() {
           onSalvo={() => { setModal(null); buscar(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ── Lembretes ─────────────────────────────────────────────────────
+// Recados pontuais, sem data marcada — bem mais leve que um compromisso.
+// Sempre pessoais (só quem criou vê e mexe). Suporta **negrito** no texto.
+interface LembreteDTO { id: string; texto: string; createdAt: string }
+
+// Renderiza texto com **trechos em negrito** virando <strong>, preservando
+// quebras de linha (o container usa whitespace-pre-wrap).
+function renderComNegrito(texto: string) {
+  const partes = texto.split(/(\*\*[^*]+\*\*)/g);
+  return partes.map((parte, i) => {
+    const m = parte.match(/^\*\*([^*]+)\*\*$/);
+    return m ? <strong key={i}>{m[1]}</strong> : <span key={i}>{parte}</span>;
+  });
+}
+
+function PainelLembretes() {
+  const [lembretes, setLembretes] = useState<LembreteDTO[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [texto, setTexto] = useState("");
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    const res = await fetch("/api/lembretes");
+    if (res.ok) setLembretes(await res.json());
+    setCarregando(false);
+  }, []);
+
+  useEffect(() => { buscar(); }, [buscar]);
+
+  function aplicarNegrito() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selecionado = texto.slice(start, end);
+    const antes = texto.slice(0, start);
+    const depois = texto.slice(end);
+    const novo = selecionado ? `${antes}**${selecionado}**${depois}` : `${antes}**negrito**${depois}`;
+    setTexto(novo);
+    requestAnimationFrame(() => {
+      ta.focus();
+      if (selecionado) {
+        ta.setSelectionRange(start + selecionado.length + 4, start + selecionado.length + 4);
+      } else {
+        ta.setSelectionRange(start + 2, start + 2 + "negrito".length);
+      }
+    });
+  }
+
+  function iniciarEdicao(l: LembreteDTO) {
+    setEditandoId(l.id);
+    setTexto(l.texto);
+    textareaRef.current?.focus();
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+    setTexto("");
+  }
+
+  async function salvar() {
+    const valor = texto.trim();
+    if (!valor) return;
+    setSalvando(true);
+    const res = editandoId
+      ? await fetch(`/api/lembretes/${editandoId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto: valor }),
+        })
+      : await fetch("/api/lembretes", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto: valor }),
+        });
+    setSalvando(false);
+    if (res.ok) {
+      setTexto("");
+      setEditandoId(null);
+      buscar();
+    }
+  }
+
+  async function excluir(id: string) {
+    if (!confirm("Excluir este lembrete?")) return;
+    if (editandoId === id) cancelarEdicao();
+    await fetch(`/api/lembretes/${id}`, { method: "DELETE" });
+    buscar();
+  }
+
+  return (
+    <div className="card space-y-3 w-full lg:w-72 flex-shrink-0">
+      <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+        📌 Lembretes
+      </h3>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={aplicarNegrito}
+            className="btn-icon !p-1.5 font-bold text-xs w-7 h-7"
+            title="Negrito"
+          >B</button>
+          <span className="text-[10px] text-gray-400">selecione o texto e clique em B pra negritar</span>
+        </div>
+        <textarea
+          ref={textareaRef}
+          className="input text-sm min-h-[64px] bg-yellow-50/60"
+          placeholder="Anote algo pontual do dia a dia..."
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={salvar}
+            disabled={salvando || !texto.trim()}
+            className="btn btn-primary btn-sm flex-1"
+          >
+            {salvando ? "Salvando..." : editandoId ? "Salvar alteração" : "+ Adicionar lembrete"}
+          </button>
+          {editandoId && (
+            <button type="button" onClick={cancelarEdicao} className="btn btn-sm">Cancelar</button>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1.5 max-h-[420px] overflow-y-auto">
+        {carregando ? (
+          <p className="text-xs text-gray-400 text-center py-4">Carregando...</p>
+        ) : lembretes.length === 0 ? (
+          <p className="text-xs text-gray-400 text-center py-4">Nenhum lembrete ainda.</p>
+        ) : lembretes.map((l) => (
+          <div key={l.id} className="group flex items-start gap-2 bg-yellow-50/60 border border-yellow-100 rounded-lg px-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => iniciarEdicao(l)}
+              className="flex-1 min-w-0 text-left text-xs text-gray-700 whitespace-pre-wrap break-words"
+            >
+              {renderComNegrito(l.texto)}
+            </button>
+            <button
+              type="button"
+              onClick={() => excluir(l.id)}
+              className="text-gray-300 hover:text-red-500 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              title="Excluir"
+            >✕</button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

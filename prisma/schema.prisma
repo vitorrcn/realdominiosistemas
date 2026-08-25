@@ -50,6 +50,7 @@ model Usuario {
   registrosAtividade RegistroAtividade[]
   agendaItens       AgendaItem[] @relation("AgendaUsuario")
   agendaCriados     AgendaItem[] @relation("AgendaCriador")
+  lembretes         Lembrete[]
   acessosCriados    AcessoSistema[]
   eventoHistoricos  EventoHistorico[]
   @@map("usuarios")
@@ -608,6 +609,20 @@ model AgendaItem {
   usuario      Usuario?  @relation("AgendaUsuario", fields: [usuarioId], references: [id])
   criadoPor    Usuario   @relation("AgendaCriador", fields: [criadoPorId], references: [id])
   @@map("agenda_itens")
+}
+
+// Lembretes pessoais mostrados na Agenda: recados pontuais do dia a dia,
+// bem mais leve que um compromisso com data/hora. Texto simples com suporte
+// a **negrito** (marcado na tela, renderizado como <strong> na exibição).
+// Sempre pessoal: cada um só vê e mexe nos próprios lembretes.
+model Lembrete {
+  id         String   @id @default(uuid())
+  texto      String   @db.Text
+  usuarioId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  usuario    Usuario  @relation(fields: [usuarioId], references: [id])
+  @@map("lembretes")
 }
 
 model AcessoSistema {
