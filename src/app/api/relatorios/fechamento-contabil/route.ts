@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, setoresQueSupervisiona } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 // GET /api/relatorios/fechamento-contabil
@@ -10,7 +10,9 @@ import { prisma } from "@/lib/prisma";
 //   ANTERIOR ao atual (ex.: em 2026, até 31/12/2025).
 // - Cliente que já saiu (com dataSaida preenchida): precisa ter fechamento
 //   pelo menos até o MÊS/ANO em que saiu — não se cobra fechamento depois disso.
-// Restrito à Diretoria.
+// Aberto a qualquer perfil logado, mas escopado igual ao resto do sistema:
+// Diretoria e supervisor do Contábil veem a carteira inteira; qualquer
+// outra pessoa só vê os clientes onde ela é a responsável pelo Contábil.
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,11 +20,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
     const user = session.user as any;
-    if (user.perfilGlobal !== "DIRETORIA")
-      return NextResponse.json({ error: "Restrito à Diretoria" }, { status: 403 });
+    const vejoTudo =
+      user.perfilGlobal === "DIRETORIA" ||
+      setoresQueSupervisiona(user.setores ?? []).includes("Contábil");
 
     const empresas = await prisma.empresa.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...(!vejoTudo && { respContabilId: user.id }) },
       select: {
         id: true,
         codigoInterno: true,
@@ -88,7 +91,7 @@ export async function GET(req: NextRequest) {
       exClientes: contar(linhas.filter((l) => l.saiu)),
     };
 
-    return NextResponse.json({ linhas, resumo, anoAtual });
+    return NextResponse.json({ linhas, resumo, anoAtual, vejoTudo });
   } catch (e: any) {
     console.error("Erro ao gerar relatório de fechamento contábil:", e);
     return NextResponse.json(

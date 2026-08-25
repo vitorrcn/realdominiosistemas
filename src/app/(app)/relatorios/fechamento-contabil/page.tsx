@@ -39,6 +39,7 @@ export default function RelatorioFechamentoContabilPage() {
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [anoAtual, setAnoAtual] = useState<number | null>(null);
+  const [vejoTudo, setVejoTudo] = useState(true);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [exportando, setExportando] = useState(false);
@@ -55,7 +56,7 @@ export default function RelatorioFechamentoContabilPage() {
         if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error ?? "Erro ao carregar"); }
         return r.json();
       })
-      .then((json) => { setLinhas(json.linhas); setResumo(json.resumo); setAnoAtual(json.anoAtual); })
+      .then((json) => { setLinhas(json.linhas); setResumo(json.resumo); setAnoAtual(json.anoAtual); setVejoTudo(json.vejoTudo ?? true); })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
     fetch("/api/usuarios").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
@@ -123,6 +124,7 @@ export default function RelatorioFechamentoContabilPage() {
               : anoAtual
               ? `Clientes ativos precisam de fechamento até 31/12/${anoAtual - 1} · clientes que saíram, até o mês em que saíram`
               : ""}
+            {!carregando && !vejoTudo && <span className="text-gray-500"> · Mostrando só a sua carteira</span>}
           </p>
         </div>
         <button onClick={exportarExcel} disabled={carregando || exportando || filtradas.length === 0} className="btn btn-sm">
@@ -213,11 +215,13 @@ export default function RelatorioFechamentoContabilPage() {
           <option value="sem_data">Sem data</option>
         </select>
 
-        <select className="select text-sm w-52" value={carteiraFiltro} onChange={(e) => setCarteiraFiltro(e.target.value)}>
-          <option value="">Todas as carteiras</option>
-          <option value="sem-responsavel">Sem responsável</option>
-          {carteiras.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-        </select>
+        {vejoTudo && (
+          <select className="select text-sm w-52" value={carteiraFiltro} onChange={(e) => setCarteiraFiltro(e.target.value)}>
+            <option value="">Todas as carteiras</option>
+            <option value="sem-responsavel">Sem responsável</option>
+            {carteiras.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        )}
 
         {(situacaoFiltro || grupoFiltro || carteiraFiltro || q) && (
           <button onClick={() => { setSituacaoFiltro(""); setGrupoFiltro(""); setCarteiraFiltro(""); setQ(""); }} className="btn btn-sm ml-auto text-gray-400">
