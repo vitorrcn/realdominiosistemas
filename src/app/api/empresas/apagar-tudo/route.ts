@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       await tx.obsHistorico.deleteMany({});
       await tx.acessoSistema.deleteMany({});
       await tx.empresaPessoa.deleteMany({});
+      await tx.contaBancaria.deleteMany({});
       await tx.fiscal.deleteMany({});
       await tx.contabil.deleteMany({});
       await tx.dp.deleteMany({});

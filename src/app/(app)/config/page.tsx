@@ -32,6 +32,12 @@ const itens = [
     desc: "Gerenciar a lista de ramos usada no cadastro de clientes",
   },
   {
+    href: "/config/excluidos",
+    icon: "🗑️",
+    titulo: "Clientes excluídos",
+    desc: "Restaurar ou apagar de vez clientes excluídos (libera CNPJ/CPF/código)",
+  },
+  {
     href: "/config/zona-perigo",
     icon: "⚠️",
     titulo: "Zona de perigo",

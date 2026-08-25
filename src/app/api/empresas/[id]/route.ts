@@ -252,9 +252,28 @@ export async function DELETE(
   if (user.perfilGlobal !== "DIRETORIA")
     return NextResponse.json({ error: "Somente Diretoria pode excluir empresas" }, { status: 403 });
 
+  const empresaAtual = await prisma.empresa.findUnique({
+    where: { id: params.id },
+    select: { codigoInterno: true, cnpj: true, cpf: true },
+  });
+  if (!empresaAtual)
+    return NextResponse.json({ error: "Cliente não encontrado" }, { status: 404 });
+
+  // CNPJ/CPF/código interno são únicos no banco — sem "desmarcar" eles
+  // aqui, um cliente excluído continua bloqueando o cadastro de um cliente
+  // novo com o mesmo CNPJ/CPF/código pra sempre (mesmo sumindo da lista).
+  // O sufixo mantém o valor original visível em "Clientes excluídos" (pra
+  // restaurar/consultar depois) mas libera o valor de verdade na hora.
+  const sufixo = `__excluida_${Date.now()}`;
   await prisma.empresa.update({
     where: { id: params.id },
-    data: { deletedAt: new Date(), ativo: false },
+    data: {
+      deletedAt: new Date(),
+      ativo: false,
+      codigoInterno: `${empresaAtual.codigoInterno}${sufixo}`,
+      ...(empresaAtual.cnpj && { cnpj: `${empresaAtual.cnpj}${sufixo}` }),
+      ...(empresaAtual.cpf && { cpf: `${empresaAtual.cpf}${sufixo}` }),
+    },
   });
 
   await prisma.auditoria.create({
