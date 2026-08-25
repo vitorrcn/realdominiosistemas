@@ -12,6 +12,7 @@ interface AgendaItemDTO {
   horaFim: string | null;
   diaTodo: boolean;
   tipo: string;
+  concluido: boolean;
   setor: { id: string; nome: string } | null;
   usuario: { id: string; nome: string } | null;
   criadoPor: { id: string; nome: string };
@@ -117,6 +118,30 @@ export default function AgendaPage() {
     setAncora(novo);
   }
 
+  // Marca/desmarca um compromisso como feito direto na grade, sem abrir o
+  // modal — reenvia todos os campos do item (o PUT não faz update parcial).
+  async function alternarConcluido(item: AgendaItemDTO) {
+    setItens((prev) => prev.map((it) => it.id === item.id ? { ...it, concluido: !it.concluido } : it));
+    const res = await fetch(`/api/agenda/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        titulo: item.titulo,
+        descricao: item.descricao,
+        data: String(item.data).slice(0, 10),
+        horaInicio: item.horaInicio,
+        horaFim: item.horaFim,
+        diaTodo: item.diaTodo,
+        tipo: item.tipo,
+        concluido: !item.concluido,
+      }),
+    });
+    if (!res.ok) {
+      // reverte se o servidor recusou
+      setItens((prev) => prev.map((it) => it.id === item.id ? { ...it, concluido: item.concluido } : it));
+    }
+  }
+
   const hojeISO = toISODate(new Date());
 
   return (
@@ -200,18 +225,31 @@ export default function AgendaPage() {
 
               <div className="space-y-1">
                 {itensDoDia.slice(0, visao === "mes" ? 3 : 99).map((it) => (
-                  <button
+                  <div
                     key={it.id}
-                    onClick={() => setModal({ aberto: true, item: it })}
-                    className={`w-full text-left px-1.5 py-1 rounded-md text-[11px] leading-tight truncate ${
-                      it.tipo === "REUNIAO" ? "bg-amber-50 text-amber-700" : it.setor ? "bg-blue-50 text-blue-700" : "bg-brand-50 text-brand-700"
+                    className={`w-full flex items-center gap-1 px-1.5 py-1 rounded-md text-[11px] leading-tight ${
+                      it.concluido ? "bg-green-50 text-green-700" : it.tipo === "REUNIAO" ? "bg-amber-50 text-amber-700" : it.setor ? "bg-blue-50 text-blue-700" : "bg-brand-50 text-brand-700"
                     }`}
-                    title={it.titulo}
                   >
-                    {it.tipo === "REUNIAO" && "🗓️ "}
-                    {!it.diaTodo && it.horaInicio && <span className="font-mono mr-1">{it.horaInicio}</span>}
-                    {it.titulo}
-                  </button>
+                    {podeEditar && (
+                      <input
+                        type="checkbox"
+                        className="w-3 h-3 rounded flex-shrink-0 accent-green-600 cursor-pointer"
+                        checked={it.concluido}
+                        onChange={() => alternarConcluido(it)}
+                        title={it.concluido ? "Marcar como não feito" : "Marcar como feito"}
+                      />
+                    )}
+                    <button
+                      onClick={() => setModal({ aberto: true, item: it })}
+                      className={`flex-1 min-w-0 text-left truncate ${it.concluido ? "line-through opacity-70" : ""}`}
+                      title={it.titulo}
+                    >
+                      {it.tipo === "REUNIAO" && "🗓️ "}
+                      {!it.diaTodo && it.horaInicio && <span className="font-mono mr-1">{it.horaInicio}</span>}
+                      {it.titulo}
+                    </button>
+                  </div>
                 ))}
                 {visao === "mes" && itensDoDia.length > 3 && (
                   <div className="text-[10px] text-gray-400 px-1.5">+{itensDoDia.length - 3} mais</div>
@@ -266,6 +304,7 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, onF
     horaFim: item?.horaFim ?? "",
     diaTodo: item?.diaTodo ?? false,
     tipo: item?.tipo ?? "COMPROMISSO",
+    concluido: item?.concluido ?? false,
     setorId: item?.setor?.id ?? "",
     usuarioId: item?.usuario?.id ?? "",
   });
@@ -351,6 +390,13 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, onF
             <input type="checkbox" className="w-4 h-4 rounded text-brand-600" checked={form.diaTodo} onChange={(e) => set("diaTodo", e.target.checked)} />
             <span className="text-sm text-gray-700">Dia todo</span>
           </label>
+
+          {editando && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded text-green-600" checked={form.concluido} onChange={(e) => set("concluido", e.target.checked)} />
+              <span className="text-sm text-gray-700">Feito</span>
+            </label>
+          )}
 
           <div>
             <label className="label">Tipo</label>

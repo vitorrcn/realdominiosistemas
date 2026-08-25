@@ -37,13 +37,20 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
     (["OPERADOR", "LIDER"].includes(perfil) && !souMordomoDestaEmpresa) ||
     (perfil === "CONSULTA" && meusSetores.length > 0);
 
+  // Todo mundo com acesso à empresa vê o cadastro inteiro (todas as abas de
+  // setor) — só a EDIÇÃO de cada aba fica restrita a quem é do setor dela
+  // (ou Diretoria/mordomo responsável). Ver podeEditarSetor() abaixo.
   const abasVisiveis = ABAS.filter((a) => {
     if (a.somenteComercial && !podeVerComercial) return false;
-    // Operador só vê a(s) aba(s) do(s) setor(es) dele(s) (mais Visão 360° e Relacionamento, que não são de um setor só).
-    // Mordomo(a) segue a mesma regra, exceto nas empresas em que ele é o mordomo responsável.
-    if (restritoAoProprioSetor && a.setorNome && !meusSetores.includes(a.setorNome)) return false;
     return true;
   });
+
+  // Pode editar os dados da aba de um setor: Diretoria e o(a) mordomo(a)
+  // responsável por esta empresa editam qualquer aba; os demais só editam
+  // a(s) aba(s) do(s) setor(es) deles — mas continuam podendo VISUALIZAR
+  // todas as outras (abasVisiveis acima já não filtra mais por setor).
+  const podeEditarSetor = (setorNome?: string) =>
+    !setorNome || !restritoAoProprioSetor || meusSetores.includes(setorNome);
   const [aba, setAba] = useState("360");
   const searchParams = useSearchParams();
   useEffect(() => {
@@ -179,13 +186,20 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
               key={a.key}
               onClick={() => setAba(a.key)}
               className={cn(
-                "px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors",
+                "px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-1.5",
                 aba === a.key
                   ? "border-brand-600 text-brand-700"
                   : "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300"
               )}
             >
               {a.label}
+              {!podeEditarSetor(a.setorNome) && (
+                <span title="Somente leitura">
+                  <svg className="w-3 h-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                  </svg>
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -194,10 +208,10 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
       {/* Conteúdo das abas */}
       <div>
         {aba === "360"          && <Aba360          empresa={empresa} />}
-        {aba === "fiscal"       && <AbaFiscal       empresa={empresa} salvar={salvar} salvando={salvando} />}
-        {aba === "contabil"     && <AbaContabil     empresa={empresa} salvar={salvar} salvando={salvando} />}
-        {aba === "dp"           && <AbaDp           empresa={empresa} salvar={salvar} salvando={salvando} />}
-        {aba === "societario"   && <AbaSocietario   empresa={empresa} salvar={salvar} salvando={salvando} />}
+        {aba === "fiscal"       && <AbaFiscal       empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Fiscal")} />}
+        {aba === "contabil"     && <AbaContabil     empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Contábil")} />}
+        {aba === "dp"           && <AbaDp           empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Departamento Pessoal")} />}
+        {aba === "societario"   && <AbaSocietario   empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Societário")} />}
         {aba === "relacionamento"&&<AbaRelacionamento empresa={empresa} salvar={salvar} salvando={salvando} />}
         {aba === "comercial"     && podeVerComercial && <AbaComercial empresa={empresa} salvar={salvar} salvando={salvando} />}
       </div>
@@ -359,13 +373,15 @@ function Aba360({ empresa }: { empresa: any }) {
 }
 
 // ── Aba Fiscal ──────────────────────────────────────────────────
-function AbaFiscal({ empresa, salvar, salvando }: any) {
+function AbaFiscal({ empresa, salvar, salvando, podeEditar }: any) {
   const f = empresa.fiscal ?? {};
   const [form, setForm] = useState({ ...f });
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); salvar("fiscal", form); }} className="space-y-5">
+    <form onSubmit={(e) => { e.preventDefault(); if (podeEditar) salvar("fiscal", form); }} className="space-y-5">
+      <AvisoSomenteLeitura podeEditar={podeEditar} />
+      <fieldset disabled={!podeEditar} className="contents">
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Regime tributário</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -443,16 +459,18 @@ function AbaFiscal({ empresa, salvar, salvando }: any) {
         <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
       </div>
 
-      <AcessosSetor empresaId={empresa.id} setorNome="Fiscal" />
-      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Fiscal" />
+      </fieldset>
 
-      <BotaoSalvar salvando={salvando} />
+      <AcessosSetor empresaId={empresa.id} setorNome="Fiscal" podeEditar={podeEditar} />
+      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Fiscal" podeEditar={podeEditar} />
+
+      {podeEditar && <BotaoSalvar salvando={salvando} />}
     </form>
   );
 }
 
 // ── Aba Contábil ────────────────────────────────────────────────
-function AbaContabil({ empresa, salvar, salvando }: any) {
+function AbaContabil({ empresa, salvar, salvando, podeEditar }: any) {
   const c = empresa.contabil ?? {};
   const [form, setForm] = useState({ ...c });
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
@@ -463,7 +481,9 @@ function AbaContabil({ empresa, salvar, salvando }: any) {
   }, []);
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); salvar("contabil", form); }} className="space-y-5">
+    <form onSubmit={(e) => { e.preventDefault(); if (podeEditar) salvar("contabil", form); }} className="space-y-5">
+      <AvisoSomenteLeitura podeEditar={podeEditar} />
+      <fieldset disabled={!podeEditar} className="contents">
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Fechamento contábil</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -528,11 +548,13 @@ function AbaContabil({ empresa, salvar, salvando }: any) {
         </div>
       </div>
 
-      <ContasBancariasSetor empresaId={empresa.id} />
-      <AcessosSetor empresaId={empresa.id} setorNome="Contábil" />
-      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Contábil" />
+      </fieldset>
 
-      <BotaoSalvar salvando={salvando} />
+      <ContasBancariasSetor empresaId={empresa.id} podeEditar={podeEditar} />
+      <AcessosSetor empresaId={empresa.id} setorNome="Contábil" podeEditar={podeEditar} />
+      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Contábil" podeEditar={podeEditar} />
+
+      {podeEditar && <BotaoSalvar salvando={salvando} />}
     </form>
   );
 }
@@ -540,11 +562,7 @@ function AbaContabil({ empresa, salvar, salvando }: any) {
 // ── Contas bancárias do cliente (aba Contábil) ────────────────────
 // Registro de cada conta bancária: banco, agência/número, até onde já
 // temos o extrato conferido e se a conta ainda está ativa.
-function ContasBancariasSetor({ empresaId }: { empresaId: string }) {
-  const { data: session } = useSession();
-  const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeEditar = !!perfil;
-
+function ContasBancariasSetor({ empresaId, podeEditar }: { empresaId: string; podeEditar: boolean }) {
   const vazio = { banco: "", agencia: "", numeroConta: "", ativa: true, extratoAte: "", observacoes: "" };
 
   const [contas, setContas] = useState<any[]>([]);
@@ -703,13 +721,15 @@ function ContasBancariasSetor({ empresaId }: { empresaId: string }) {
 }
 
 // ── Aba DP ──────────────────────────────────────────────────────
-function AbaDp({ empresa, salvar, salvando }: any) {
+function AbaDp({ empresa, salvar, salvando, podeEditar }: any) {
   const d = empresa.dp ?? {};
   const [form, setForm] = useState({ ...d });
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); salvar("dp", form); }} className="space-y-5">
+    <form onSubmit={(e) => { e.preventDefault(); if (podeEditar) salvar("dp", form); }} className="space-y-5">
+      <AvisoSomenteLeitura podeEditar={podeEditar} />
+      <fieldset disabled={!podeEditar} className="contents">
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Departamento Pessoal</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -766,22 +786,26 @@ function AbaDp({ empresa, salvar, salvando }: any) {
         <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
       </div>
 
-      <AcessosSetor empresaId={empresa.id} setorNome="Departamento Pessoal" />
-      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Departamento Pessoal" />
+      </fieldset>
 
-      <BotaoSalvar salvando={salvando} />
+      <AcessosSetor empresaId={empresa.id} setorNome="Departamento Pessoal" podeEditar={podeEditar} />
+      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Departamento Pessoal" podeEditar={podeEditar} />
+
+      {podeEditar && <BotaoSalvar salvando={salvando} />}
     </form>
   );
 }
 
 // ── Aba Societário ──────────────────────────────────────────────
-function AbaSocietario({ empresa, salvar, salvando }: any) {
+function AbaSocietario({ empresa, salvar, salvando, podeEditar }: any) {
   const s = empresa.societario ?? {};
   const [form, setForm] = useState({ ...s });
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); salvar("societario", form); }} className="space-y-5">
+    <form onSubmit={(e) => { e.preventDefault(); if (podeEditar) salvar("societario", form); }} className="space-y-5">
+      <AvisoSomenteLeitura podeEditar={podeEditar} />
+      <fieldset disabled={!podeEditar} className="contents">
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Contrato e certidões</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -863,10 +887,12 @@ function AbaSocietario({ empresa, salvar, salvando }: any) {
         <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
       </div>
 
-      <AcessosSetor empresaId={empresa.id} setorNome="Societário" />
-      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Societário" />
+      </fieldset>
 
-      <BotaoSalvar salvando={salvando} />
+      <AcessosSetor empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
+      <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
+
+      {podeEditar && <BotaoSalvar salvando={salvando} />}
     </form>
   );
 }
@@ -1031,11 +1057,7 @@ function AbaComercial({ empresa, salvar, salvando }: any) {
 
 // ── Botão salvar reutilizável ───────────────────────────────────
 // ── Acessos do setor (login/senha ou anotações de acesso) ───────
-function AcessosSetor({ empresaId, setorNome }: { empresaId: string; setorNome: string }) {
-  const { data: session } = useSession();
-  const perfil = (session?.user as any)?.perfilGlobal ?? "";
-  const podeEditar = !!perfil;
-
+function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string; setorNome: string; podeEditar: boolean }) {
   const [setorId, setSetorId] = useState<string | null>(null);
   const [acessos, setAcessos] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -1173,10 +1195,7 @@ function AcessosSetor({ empresaId, setorNome }: { empresaId: string; setorNome: 
 }
 
 // ── Resumo de obrigações do setor para esta empresa ──────────────
-function ObrigacoesSetorResumo({ empresaId, setorNome }: { empresaId: string; setorNome: string }) {
-  const { data: session } = useSession();
-  const podeEditar = !!((session?.user as any)?.perfilGlobal);
-
+function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId: string; setorNome: string; podeEditar: boolean }) {
   const [setorId, setSetorId] = useState<string | null>(null);
   const [itens, setItens] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -1305,6 +1324,20 @@ function ObrigacoesSetorResumo({ empresaId, setorNome }: { empresaId: string; se
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Aviso mostrado no topo de uma aba de setor quando quem está olhando não
+// pertence a esse setor — pode ver os dados, mas não editar.
+function AvisoSomenteLeitura({ podeEditar }: { podeEditar: boolean }) {
+  if (podeEditar) return null;
+  return (
+    <div className="flex items-center gap-2 p-3 rounded-lg bg-gray-50 border border-gray-200">
+      <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+      <span className="text-xs text-gray-500">Somente leitura — esta aba pertence a outro setor.</span>
     </div>
   );
 }

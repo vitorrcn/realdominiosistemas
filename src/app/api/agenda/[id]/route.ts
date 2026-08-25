@@ -60,6 +60,7 @@ export async function PUT(
         horaFim: body.diaTodo ? null : (body.horaFim || null),
         diaTodo: !!body.diaTodo,
         tipo: body.tipo !== undefined ? (body.tipo === "REUNIAO" ? "REUNIAO" : "COMPROMISSO") : undefined,
+        concluido: body.concluido !== undefined ? !!body.concluido : undefined,
       },
       include: {
         setor: { select: { id: true, nome: true } },
