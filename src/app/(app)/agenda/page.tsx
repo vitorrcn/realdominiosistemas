@@ -13,6 +13,7 @@ interface AgendaItemDTO {
   diaTodo: boolean;
   tipo: string;
   concluido: boolean;
+  privado: boolean;
   setor: { id: string; nome: string } | null;
   usuario: { id: string; nome: string } | null;
   criadoPor: { id: string; nome: string };
@@ -247,6 +248,7 @@ export default function AgendaPage() {
                       title={it.titulo}
                     >
                       {it.tipo === "REUNIAO" && "🗓️ "}
+                      {it.privado && "🔒 "}
                       {!it.diaTodo && it.horaInicio && <span className="font-mono mr-1">{it.horaInicio}</span>}
                       {it.titulo}
                     </button>
@@ -280,6 +282,7 @@ export default function AgendaPage() {
           setores={setores}
           usuarios={usuarios}
           perfil={user?.perfilGlobal}
+          meuId={user?.id}
           onFechar={() => setModal(null)}
           onSalvo={() => { setModal(null); buscar(); }}
         />
@@ -443,12 +446,13 @@ function PainelLembretes() {
 }
 
 // ── Modal de criar/editar compromisso ────────────────────────────
-function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, onFechar, onSalvo }: {
+function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, meuId, onFechar, onSalvo }: {
   item?: AgendaItemDTO;
   dataPreenchida?: string;
   setores: OpcaoSimples[];
   usuarios: OpcaoSimples[];
   perfil: string;
+  meuId: string;
   onFechar: () => void;
   onSalvo: () => void;
 }) {
@@ -463,8 +467,11 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, onF
     diaTodo: item?.diaTodo ?? false,
     tipo: item?.tipo ?? "COMPROMISSO",
     concluido: item?.concluido ?? false,
+    privado: item?.privado ?? false,
     setorId: item?.setor?.id ?? "",
-    usuarioId: item?.usuario?.id ?? "",
+    // Novo compromisso "de um colaborador": já vem pré-selecionado com a
+    // própria pessoa (o caso mais comum é criar algo pra si mesmo).
+    usuarioId: item?.usuario?.id ?? (item ? "" : meuId ?? ""),
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -553,6 +560,13 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, onF
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="w-4 h-4 rounded text-green-600" checked={form.concluido} onChange={(e) => set("concluido", e.target.checked)} />
               <span className="text-sm text-gray-700">Feito</span>
+            </label>
+          )}
+
+          {alvo === "usuario" && form.usuarioId === meuId && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded text-gray-600" checked={form.privado} onChange={(e) => set("privado", e.target.checked)} />
+              <span className="text-sm text-gray-700">🔒 Só eu vejo este compromisso</span>
             </label>
           )}
 

@@ -32,6 +32,16 @@ export async function GET(req: NextRequest) {
 
   const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);
 
+  // Compromisso marcado como "privado" só aparece pra quem ele pertence
+  // (usuarioId) — nem pro mordomo do setor, nem pra Diretoria. Some
+  // silenciosamente da lista de qualquer outra pessoa, igual um lembrete
+  // pessoal. Só entra essa restrição extra quando a pessoa logada pode
+  // enxergar compromissos de OUTRA gente (Líder/Diretoria) — o Operador já
+  // só vê os próprios itens, então nunca esconde nada dele mesmo.
+  const escondePrivadosDeOutros: Prisma.AgendaItemWhereInput = {
+    OR: [{ privado: false }, { usuarioId: user.id }],
+  };
+
   if (perfil === "OPERADOR") {
     // Agenda é individual — só a própria, sem exceção.
     where.usuarioId = user.id;
@@ -66,8 +76,14 @@ export async function GET(req: NextRequest) {
     if (usuarioId) where.usuarioId = usuarioId;
   }
 
+  // Operador só enxerga os próprios itens de qualquer forma (nunca esconde
+  // nada dele mesmo); Líder e Diretoria podem ver compromissos de outra
+  // gente, então entra a restrição de privacidade.
+  const whereFinal: Prisma.AgendaItemWhereInput =
+    perfil === "OPERADOR" ? where : { AND: [where, escondePrivadosDeOutros] };
+
   const itens = await prisma.agendaItem.findMany({
-    where,
+    where: whereFinal,
     orderBy: [{ data: "asc" }, { horaInicio: "asc" }],
     include: {
       setor: { select: { id: true, nome: true } },
@@ -91,6 +107,10 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { titulo, descricao, data, horaInicio, horaFim, diaTodo, setorId, usuarioId, tipo } = body;
+  // "Privado" só faz sentido pra um compromisso da própria agenda pessoal —
+  // ignora silenciosamente se pedirem privado num compromisso de setor ou
+  // atribuído a outra pessoa.
+  const privado = !!body.privado && usuarioId === user.id;
 
   if (!titulo || !data)
     return NextResponse.json({ error: "Título e data são obrigatórios" }, { status: 400 });
@@ -137,6 +157,7 @@ export async function POST(req: NextRequest) {
         horaFim: diaTodo ? null : (horaFim || null),
         diaTodo: !!diaTodo,
         tipo: tipo === "REUNIAO" ? "REUNIAO" : "COMPROMISSO",
+        privado,
         setorId: setorId || null,
         usuarioId: usuarioId || null,
         criadoPorId: user.id,

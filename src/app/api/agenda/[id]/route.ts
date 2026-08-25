@@ -48,6 +48,12 @@ export async function PUT(
     return NextResponse.json({ error: erroPermissao }, { status: 403 });
 
   const body = await req.json();
+  // "Privado" só faz sentido pra um item da própria agenda pessoal (o alvo
+  // usuarioId não muda na edição) — ignora silenciosamente em qualquer
+  // outro caso.
+  const privado = body.privado !== undefined
+    ? (!!body.privado && existente.usuarioId === user.id)
+    : undefined;
 
   try {
     const item = await prisma.agendaItem.update({
@@ -61,6 +67,7 @@ export async function PUT(
         diaTodo: !!body.diaTodo,
         tipo: body.tipo !== undefined ? (body.tipo === "REUNIAO" ? "REUNIAO" : "COMPROMISSO") : undefined,
         concluido: body.concluido !== undefined ? !!body.concluido : undefined,
+        privado,
       },
       include: {
         setor: { select: { id: true, nome: true } },

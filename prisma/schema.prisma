@@ -600,6 +600,7 @@ model AgendaItem {
   diaTodo      Boolean   @default(false)
   tipo         String    @default("COMPROMISSO") // "COMPROMISSO" | "REUNIAO"
   concluido    Boolean   @default(false) // marcado quando o compromisso foi feito (fica verde na agenda)
+  privado      Boolean   @default(false) // so o proprio usuario (usuarioId) ve - nem supervisor, nem Diretoria
   setorId      String?   // preenchido quando eh um compromisso do setor inteiro
   usuarioId    String?   // preenchido quando eh um compromisso de um colaborador especifico
   criadoPorId  String
