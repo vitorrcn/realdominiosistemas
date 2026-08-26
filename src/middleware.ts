@@ -43,6 +43,11 @@ export default withAuth(
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
 
+    // Relações Comerciais é pra Diretoria + quem foi autorizado individualmente
+    if (path.startsWith("/relacoes-comerciais") && token?.perfilGlobal !== "DIRETORIA" && !token?.podeVerRelacoesComerciais) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+
     return NextResponse.next();
   },
   {

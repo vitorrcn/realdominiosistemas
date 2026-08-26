@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         email: true,
         perfilGlobal: true,
         podeVerComercial: true,
+        podeVerRelacoesComerciais: true,
         ativo: true,
         createdAt: true,
         setores: {
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
 
   const body = await req.json();
-  const { nome, email, senha, perfilGlobal, podeVerComercial, setores } = body;
+  const { nome, email, senha, perfilGlobal, podeVerComercial, podeVerRelacoesComerciais, setores } = body;
 
   if (!nome || !email || !senha)
     return NextResponse.json({ error: "nome, email e senha são obrigatórios" }, { status: 400 });
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
       senhaHash,
       perfilGlobal: perfilGlobal as PerfilGlobal,
       podeVerComercial: podeVerComercial ?? false,
+      podeVerRelacoesComerciais: podeVerRelacoesComerciais ?? false,
       setores: setores?.length
         ? {
             create: setores.map((s: { setorId: string; papel: string }) => ({

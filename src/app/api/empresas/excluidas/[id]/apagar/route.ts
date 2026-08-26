@@ -48,6 +48,7 @@ export async function POST(
       await tx.relacionamento.deleteMany({ where: { empresaId } });
       await tx.comercial.deleteMany({ where: { empresaId } });
       await tx.empresaPessoa.deleteMany({ where: { empresaId } });
+      await tx.relacaoComercial.deleteMany({ where: { OR: [{ prestadorId: empresaId }, { tomadorId: empresaId }] } });
       await tx.empresa.delete({ where: { id: empresaId } });
     });
 

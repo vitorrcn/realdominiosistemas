@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       await tx.societario.deleteMany({});
       await tx.relacionamento.deleteMany({});
       await tx.comercial.deleteMany({});
+      await tx.relacaoComercial.deleteMany({});
       await tx.empresa.deleteMany({});
 
       return totalEmpresas;

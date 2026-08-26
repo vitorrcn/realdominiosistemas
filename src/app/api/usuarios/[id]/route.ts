@@ -31,6 +31,7 @@ export async function PUT(
   if (user.perfilGlobal === "DIRETORIA") {
     if (body.perfilGlobal)            dados.perfilGlobal    = body.perfilGlobal as PerfilGlobal;
     if (body.podeVerComercial != null) dados.podeVerComercial = body.podeVerComercial;
+    if (body.podeVerRelacoesComerciais != null) dados.podeVerRelacoesComerciais = body.podeVerRelacoesComerciais;
     if (body.ativo != null)           dados.ativo           = body.ativo;
 
     // Atualizar setores se informado

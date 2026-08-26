@@ -53,6 +53,7 @@ export const authOptions: NextAuthOptions = {
           email: usuario.email,
           perfilGlobal: usuario.perfilGlobal,
           podeVerComercial: usuario.podeVerComercial,
+          podeVerRelacoesComerciais: usuario.podeVerRelacoesComerciais,
           setores: usuario.setores.map((us) => ({
             setorId: us.setorId,
             nome: us.setor.nome,
@@ -68,6 +69,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.perfilGlobal = (user as any).perfilGlobal;
         token.podeVerComercial = (user as any).podeVerComercial;
+        token.podeVerRelacoesComerciais = (user as any).podeVerRelacoesComerciais;
         token.setores = (user as any).setores;
       }
       return token;
@@ -77,6 +79,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).id = token.id;
         (session.user as any).perfilGlobal = token.perfilGlobal;
         (session.user as any).podeVerComercial = token.podeVerComercial;
+        (session.user as any).podeVerRelacoesComerciais = token.podeVerRelacoesComerciais;
         (session.user as any).setores = token.setores;
       }
       return session;
@@ -99,6 +102,15 @@ export function podeEditar(perfil: PerfilGlobal): boolean {
 }
 
 export function podeVerComercial(
+  perfil: PerfilGlobal,
+  flagIndividual: boolean
+): boolean {
+  return perfil === "DIRETORIA" || flagIndividual;
+}
+
+// Relações Comerciais entre clientes: mesma lógica de acesso do Comercial —
+// Diretoria sempre tem, mais quem for autorizado individualmente.
+export function podeVerRelacoesComerciais(
   perfil: PerfilGlobal,
   flagIndividual: boolean
 ): boolean {

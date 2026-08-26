@@ -29,6 +29,8 @@ model Usuario {
   perfilGlobal      PerfilGlobal @default(OPERADOR)
   ativo             Boolean      @default(true)
   podeVerComercial  Boolean      @default(false)
+  // Acesso a Relacoes Comerciais entre clientes (fora Diretoria, que sempre tem acesso)
+  podeVerRelacoesComerciais Boolean @default(false)
   // Bloco de notas pessoal - rascunho livre, so o proprio usuario ve.
   notaPessoal       String?      @db.Text
   createdAt         DateTime     @default(now())
@@ -53,6 +55,7 @@ model Usuario {
   lembretes         Lembrete[]
   acessosCriados    AcessoSistema[]
   eventoHistoricos  EventoHistorico[]
+  relacoesComerciaisCriadas RelacaoComercial[]
   @@map("usuarios")
 }
 
@@ -186,6 +189,8 @@ model Empresa {
   obsHistorico    ObsHistorico[]
   acessos         AcessoSistema[]
   registrosAtividade RegistroAtividade[]
+  relacoesPrestador  RelacaoComercial[] @relation("RelacaoPrestador")
+  relacoesTomador    RelacaoComercial[] @relation("RelacaoTomador")
   @@map("empresas")
 }
 
@@ -306,7 +311,31 @@ model RamoEmpresa {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   empresas  Contabil[]
+  relacoesComerciais RelacaoComercial[]
   @@map("ramos_empresa")
+}
+
+// Relacao comercial entre dois clientes do escritorio (ex.: cliente X
+// prestou um servico para o cliente Y). Area restrita: so Diretoria e
+// quem tiver Usuario.podeVerRelacoesComerciais alimentam e consultam.
+model RelacaoComercial {
+  id          String    @id @default(uuid())
+  prestadorId String    // empresa que prestou o servico/produto
+  tomadorId   String    // empresa que tomou o servico/produto
+  ramoId      String?   // categoria da atividade prestada (reaproveita Ramos)
+  descricao   String?
+  valor       Decimal?  @db.Decimal(14, 2)
+  data        DateTime?
+  observacoes String?
+  criadoPorId String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  prestador   Empresa      @relation("RelacaoPrestador", fields: [prestadorId], references: [id])
+  tomador     Empresa      @relation("RelacaoTomador",   fields: [tomadorId],   references: [id])
+  ramo        RamoEmpresa? @relation(fields: [ramoId], references: [id])
+  criadoPor   Usuario      @relation(fields: [criadoPorId], references: [id])
+  @@map("relacoes_comerciais")
 }
 
 model Dp {

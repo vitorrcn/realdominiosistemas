@@ -18,6 +18,7 @@ interface FormUsuario {
   senha: string;
   perfilGlobal: string;
   podeVerComercial: boolean;
+  podeVerRelacoesComerciais: boolean;
   // chave = setorId, valor = "membro" | "supervisor"
   setoresSel: Record<string, string>;
 }
@@ -26,6 +27,7 @@ const FORM_VAZIO: FormUsuario = {
   nome: "", email: "", senha: "",
   perfilGlobal: "OPERADOR",
   podeVerComercial: false,
+  podeVerRelacoesComerciais: false,
   setoresSel: {},
 };
 
@@ -82,6 +84,7 @@ export default function UsuariosPage() {
       senha: "",
       perfilGlobal: u.perfilGlobal,
       podeVerComercial: u.podeVerComercial,
+      podeVerRelacoesComerciais: u.podeVerRelacoesComerciais,
       setoresSel,
     });
     setModal({ aberto: true, usuarioId: u.id });
@@ -97,6 +100,7 @@ export default function UsuariosPage() {
       email: form.email,
       perfilGlobal: form.perfilGlobal,
       podeVerComercial: form.podeVerComercial,
+      podeVerRelacoesComerciais: form.podeVerRelacoesComerciais,
       setores: Object.entries(form.setoresSel).map(([setorId, papel]) => ({ setorId, papel })),
     };
     if (form.senha) payload.senha = form.senha; // só manda senha se foi preenchida
@@ -188,19 +192,20 @@ export default function UsuariosPage() {
         <table className="table-auto-fixed">
           <thead>
             <tr>
-              <th style={{ width: "18%" }}>Nome</th>
-              <th style={{ width: "22%" }}>E-mail</th>
-              <th style={{ width: "10%" }}>Perfil</th>
-              <th style={{ width: "16%" }}>Setores</th>
-              <th style={{ width: "9%" }}>Comercial</th>
-              <th style={{ width: "8%" }}>Desde</th>
-              <th style={{ width: "8%" }}>Status</th>
+              <th style={{ width: "16%" }}>Nome</th>
+              <th style={{ width: "20%" }}>E-mail</th>
+              <th style={{ width: "9%" }}>Perfil</th>
+              <th style={{ width: "14%" }}>Setores</th>
+              <th style={{ width: "8%" }}>Comercial</th>
+              <th style={{ width: "8%" }}>Relações</th>
+              <th style={{ width: "7%" }}>Desde</th>
+              <th style={{ width: "9%" }}>Status</th>
               <th style={{ width: "9%" }}></th>
             </tr>
           </thead>
           <tbody>
             {carregando ? (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Carregando...</td></tr>
+              <tr><td colSpan={9} className="text-center py-10 text-gray-400">Carregando...</td></tr>
             ) : usuarios.map((u) => (
               <tr key={u.id}>
                 <td className="font-medium text-gray-900">{u.nome}</td>
@@ -213,6 +218,11 @@ export default function UsuariosPage() {
                 </td>
                 <td>
                   {u.podeVerComercial
+                    ? <span className="badge badge-green">Sim</span>
+                    : <span className="badge badge-gray">Não</span>}
+                </td>
+                <td>
+                  {u.podeVerRelacoesComerciais
                     ? <span className="badge badge-green">Sim</span>
                     : <span className="badge badge-gray">Não</span>}
                 </td>
@@ -338,6 +348,12 @@ export default function UsuariosPage() {
                   checked={form.podeVerComercial}
                   onChange={(e) => setForm((p) => ({...p,podeVerComercial:e.target.checked}))} />
                 <span className="text-sm text-gray-700">Acesso aos dados comerciais</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
+                  checked={form.podeVerRelacoesComerciais}
+                  onChange={(e) => setForm((p) => ({...p,podeVerRelacoesComerciais:e.target.checked}))} />
+                <span className="text-sm text-gray-700">Acesso a Relações Comerciais entre clientes</span>
               </label>
               <div className="flex gap-2 pt-2">
                 <button type="button" className="btn flex-1 justify-center" onClick={() => setModal(null)}>Cancelar</button>
