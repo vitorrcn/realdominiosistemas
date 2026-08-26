@@ -20,7 +20,7 @@ const ABAS = [
 ];
 
 export default function EmpresaPage({ params }: { params: { id: string } }) {
-  const { empresa, carregando, erro, atualizarModulo, atualizarGeral } = useEmpresa(params.id);
+  const { empresa, carregando, erro, buscar, atualizarModulo, atualizarGeral } = useEmpresa(params.id);
   const { data: session } = useSession();
   const perfil = (session?.user as any)?.perfilGlobal ?? "";
   const meuId = (session?.user as any)?.id;
@@ -211,7 +211,7 @@ export default function EmpresaPage({ params }: { params: { id: string } }) {
         {aba === "fiscal"       && <AbaFiscal       empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Fiscal")} />}
         {aba === "contabil"     && <AbaContabil     empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Contábil")} />}
         {aba === "dp"           && <AbaDp           empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Departamento Pessoal")} />}
-        {aba === "societario"   && <AbaSocietario   empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Societário")} />}
+        {aba === "societario"   && <AbaSocietario   empresa={empresa} salvar={salvar} salvando={salvando} podeEditar={podeEditarSetor("Societário")} atualizarEmpresa={buscar} />}
         {aba === "relacionamento"&&<AbaRelacionamento empresa={empresa} salvar={salvar} salvando={salvando} />}
         {aba === "comercial"     && podeVerComercial && <AbaComercial empresa={empresa} salvar={salvar} salvando={salvando} />}
       </div>
@@ -797,7 +797,11 @@ function AbaDp({ empresa, salvar, salvando, podeEditar }: any) {
 }
 
 // ── Aba Societário ──────────────────────────────────────────────
-function AbaSocietario({ empresa, salvar, salvando, podeEditar }: any) {
+const TIPO_SOCIETARIO_LABEL: Record<string, string> = {
+  MEI: "MEI", ME: "ME", EI: "EI", EPP: "EPP", EIRELI: "EIRELI", SA: "SA", LTDA: "LTDA",
+};
+
+function AbaSocietario({ empresa, salvar, salvando, podeEditar, atualizarEmpresa }: any) {
   const s = empresa.societario ?? {};
   const [form, setForm] = useState({ ...s });
   const set = (k: string, v: any) => setForm((p: any) => ({ ...p, [k]: v }));
@@ -817,6 +821,13 @@ function AbaSocietario({ empresa, salvar, salvando, podeEditar }: any) {
           <div>
             <label className="label">Última alteração contratual</label>
             <input className="input" type="date" value={form.ultimaAlteracaoContr?.slice(0,10) ?? ""} onChange={(e) => set("ultimaAlteracaoContr", e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Tipo de sociedade</label>
+            <select className="select" value={form.tipoSocietario ?? ""} onChange={(e) => set("tipoSocietario", e.target.value || null)}>
+              <option value="">Selecione...</option>
+              {Object.entries(TIPO_SOCIETARIO_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
           </div>
         </div>
       </div>
@@ -889,11 +900,278 @@ function AbaSocietario({ empresa, salvar, salvando, podeEditar }: any) {
 
       </fieldset>
 
+      <QuadroSocietario
+        empresaId={empresa.id}
+        capitalSocial={empresa.capitalSocial}
+        socios={empresa.socios ?? []}
+        podeEditar={podeEditar}
+        onAtualizar={atualizarEmpresa}
+      />
+
       <AcessosSetor empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
       <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
 
       {podeEditar && <BotaoSalvar salvando={salvando} />}
     </form>
+  );
+}
+
+// ── Quadro societário (capital social + sócios, com valor calculado
+// automaticamente a partir do percentual de cada um) ─────────────
+function QuadroSocietario({ empresaId, capitalSocial, socios, podeEditar, onAtualizar }: {
+  empresaId: string;
+  capitalSocial: string | number | null;
+  socios: any[];
+  podeEditar: boolean;
+  onAtualizar?: () => void;
+}) {
+  const [capitalForm, setCapitalForm] = useState(capitalSocial != null ? String(capitalSocial) : "");
+  const [salvandoCapital, setSalvandoCapital] = useState(false);
+  useEffect(() => { setCapitalForm(capitalSocial != null ? String(capitalSocial) : ""); }, [capitalSocial]);
+
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [modo, setModo] = useState<"buscar" | "nova">("buscar");
+  const [buscaPessoa, setBuscaPessoa] = useState("");
+  const [resultados, setResultados] = useState<any[]>([]);
+  const [buscandoPessoa, setBuscandoPessoa] = useState(false);
+  const [pessoaSelecionada, setPessoaSelecionada] = useState<{ id: string; nome: string; cpf: string } | null>(null);
+  const [novaPessoa, setNovaPessoa] = useState({ nome: "", cpf: "" });
+  const [percentual, setPercentual] = useState("");
+  const [eAdministrador, setEAdministrador] = useState(false);
+  const [salvandoSocio, setSalvandoSocio] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const capitalNum = Number(capitalSocial) || 0;
+  const totalPercentual = socios.reduce((acc, s) => acc + (Number(s.percentualParticipacao) || 0), 0);
+
+  async function salvarCapital() {
+    setSalvandoCapital(true);
+    await fetch(`/api/empresas/${empresaId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ capitalSocial: capitalForm }),
+    });
+    setSalvandoCapital(false);
+    onAtualizar?.();
+  }
+
+  useEffect(() => {
+    if (modo !== "buscar" || buscaPessoa.trim().length < 2) { setResultados([]); return; }
+    const t = setTimeout(async () => {
+      setBuscandoPessoa(true);
+      const res = await fetch(`/api/pessoas?q=${encodeURIComponent(buscaPessoa)}&pageSize=8`);
+      if (res.ok) {
+        const json = await res.json();
+        setResultados(json.data ?? []);
+      }
+      setBuscandoPessoa(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [buscaPessoa, modo]);
+
+  function fecharForm() {
+    setMostrarForm(false);
+    setModo("buscar");
+    setBuscaPessoa("");
+    setResultados([]);
+    setPessoaSelecionada(null);
+    setNovaPessoa({ nome: "", cpf: "" });
+    setPercentual("");
+    setEAdministrador(false);
+    setErro(null);
+  }
+
+  async function vincularSocio() {
+    setErro(null);
+    let pessoaId = pessoaSelecionada?.id;
+
+    if (modo === "nova") {
+      if (!novaPessoa.nome || !novaPessoa.cpf) {
+        setErro("Nome e CPF são obrigatórios pra cadastrar a pessoa.");
+        return;
+      }
+      setSalvandoSocio(true);
+      const resPessoa = await fetch("/api/pessoas", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(novaPessoa),
+      });
+      const jsonPessoa = await resPessoa.json().catch(() => ({}));
+      if (!resPessoa.ok) {
+        setSalvandoSocio(false);
+        setErro(jsonPessoa.error ?? "Erro ao cadastrar a pessoa.");
+        return;
+      }
+      pessoaId = jsonPessoa.id;
+    }
+
+    if (!pessoaId) {
+      setErro("Selecione ou cadastre uma pessoa.");
+      return;
+    }
+
+    setSalvandoSocio(true);
+    const res = await fetch(`/api/empresas/${empresaId}/socios`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pessoaId, percentualParticipacao: percentual || null, eAdministrador }),
+    });
+    setSalvandoSocio(false);
+    if (res.ok) {
+      fecharForm();
+      onAtualizar?.();
+    } else {
+      const json = await res.json().catch(() => ({}));
+      setErro(json.error ?? "Erro ao vincular sócio.");
+    }
+  }
+
+  async function removerSocio(pessoaId: string) {
+    if (!confirm("Encerrar o vínculo desse sócio com a empresa?")) return;
+    await fetch(`/api/empresas/${empresaId}/socios?pessoaId=${pessoaId}`, { method: "DELETE" });
+    onAtualizar?.();
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900">Quadro societário</h3>
+        {podeEditar && !mostrarForm && (
+          <button type="button" onClick={() => setMostrarForm(true)} className="text-xs text-brand-600 hover:underline">
+            + Adicionar sócio
+          </button>
+        )}
+      </div>
+
+      <div className="flex items-end gap-2">
+        <div className="flex-1 max-w-[220px]">
+          <label className="label">Capital social total</label>
+          <input
+            className="input text-sm" type="number" step="0.01" min={0}
+            disabled={!podeEditar}
+            value={capitalForm}
+            onChange={(e) => setCapitalForm(e.target.value)}
+          />
+        </div>
+        {podeEditar && (
+          <button
+            type="button" onClick={salvarCapital}
+            disabled={salvandoCapital || capitalForm === (capitalSocial != null ? String(capitalSocial) : "")}
+            className="btn btn-sm"
+          >
+            {salvandoCapital ? "Salvando..." : "Salvar"}
+          </button>
+        )}
+        {socios.length > 0 && (
+          <span className={cn("text-xs pb-2.5 ml-2", totalPercentual === 100 ? "text-gray-400" : "text-orange-600 font-medium")}>
+            {totalPercentual.toLocaleString("pt-BR")}% do capital distribuído
+            {totalPercentual !== 100 && " (não fecha 100%)"}
+          </span>
+        )}
+      </div>
+
+      {socios.length === 0 ? (
+        <p className="text-xs text-gray-400">Nenhum sócio cadastrado ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {socios.map((s: any) => {
+            const pct = Number(s.percentualParticipacao) || 0;
+            const valorCota = capitalNum > 0 && pct > 0 ? (capitalNum * pct) / 100 : null;
+            return (
+              <div key={s.id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                    {s.pessoa?.nome}
+                    {s.eAdministrador && <span className="badge badge-blue text-[10px]">Administrador</span>}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    CPF: {formatCpf(s.pessoa?.cpf ?? "")}
+                    {s.percentualParticipacao != null && <> · {pct.toLocaleString("pt-BR")}% de participação</>}
+                    {valorCota != null && <> · {valorCota.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</>}
+                  </div>
+                </div>
+                {podeEditar && (
+                  <button type="button" onClick={() => removerSocio(s.pessoa.id)} className="text-xs text-red-500 hover:underline flex-shrink-0">
+                    Remover
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {mostrarForm && podeEditar && (
+        <div className="pt-3 border-t border-gray-100 space-y-3">
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={modo === "buscar"} onChange={() => setModo("buscar")} />
+              <span className="text-sm text-gray-700">Pessoa já cadastrada</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" checked={modo === "nova"} onChange={() => setModo("nova")} />
+              <span className="text-sm text-gray-700">Cadastrar nova pessoa</span>
+            </label>
+          </div>
+
+          {modo === "buscar" ? (
+            pessoaSelecionada ? (
+              <div className="flex items-center justify-between bg-brand-50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-800">{pessoaSelecionada.nome} — {formatCpf(pessoaSelecionada.cpf)}</span>
+                <button type="button" onClick={() => setPessoaSelecionada(null)} className="text-xs text-gray-500 hover:underline">trocar</button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  className="input text-sm" placeholder="Busque por nome ou CPF..."
+                  value={buscaPessoa} onChange={(e) => setBuscaPessoa(e.target.value)}
+                />
+                {buscaPessoa.trim().length >= 2 && (
+                  <div className="mt-1 border border-gray-200 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                    {buscandoPessoa ? (
+                      <p className="text-xs text-gray-400 p-2">Buscando...</p>
+                    ) : resultados.length === 0 ? (
+                      <p className="text-xs text-gray-400 p-2">Ninguém encontrado — use &quot;Cadastrar nova pessoa&quot; acima.</p>
+                    ) : resultados.map((p: any) => (
+                      <button
+                        key={p.id} type="button"
+                        onClick={() => { setPessoaSelecionada(p); setBuscaPessoa(""); setResultados([]); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                      >
+                        {p.nome} — {formatCpf(p.cpf)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <input className="input text-sm" placeholder="Nome completo" value={novaPessoa.nome} onChange={(e) => setNovaPessoa((p) => ({ ...p, nome: e.target.value }))} />
+              <input className="input text-sm" placeholder="CPF" value={novaPessoa.cpf} onChange={(e) => setNovaPessoa((p) => ({ ...p, cpf: e.target.value }))} />
+            </div>
+          )}
+
+          <div className="flex items-center gap-4">
+            <div className="w-40">
+              <label className="text-xs text-gray-500">% de participação</label>
+              <input className="input text-sm" type="number" step="0.01" min={0} max={100} value={percentual} onChange={(e) => setPercentual(e.target.value)} />
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer pt-4">
+              <input type="checkbox" className="w-4 h-4 rounded text-brand-600" checked={eAdministrador} onChange={(e) => setEAdministrador(e.target.checked)} />
+              <span className="text-sm text-gray-700">É administrador(a)</span>
+            </label>
+          </div>
+
+          {erro && <p className="text-xs text-red-600">{erro}</p>}
+
+          <div className="flex gap-2">
+            <button type="button" onClick={vincularSocio} disabled={salvandoSocio} className="btn btn-primary btn-sm">
+              {salvandoSocio ? "Salvando..." : "Vincular sócio"}
+            </button>
+            <button type="button" onClick={fecharForm} className="btn btn-sm">Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

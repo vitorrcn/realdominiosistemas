@@ -115,6 +115,18 @@ enum TipoPessoa {
   PF
 }
 
+// Natureza/porte societario da empresa (MEI, ME, EPP etc.) - informado na
+// aba Societario do cadastro.
+enum TipoSocietario {
+  MEI
+  ME
+  EI
+  EPP
+  EIRELI
+  SA
+  LTDA
+}
+
 model Empresa {
   id              String        @id @default(uuid())
   codigoInterno   String        @unique
@@ -318,6 +330,7 @@ model Dp {
 model Societario {
   id                    String    @id @default(uuid())
   empresaId             String    @unique
+  tipoSocietario        TipoSocietario?
   contratoAtualizado    Boolean   @default(false)
   ultimaAlteracaoContr  DateTime?
   certificadoDigital    Boolean   @default(false)

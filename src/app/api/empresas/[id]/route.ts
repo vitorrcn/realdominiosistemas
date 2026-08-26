@@ -158,12 +158,12 @@ export async function PUT(
         status:        body.status,
         obsAtual:      body.obsAtual,
         obsCritica:    body.obsCritica,
-        respFiscalId:  body.respFiscalId  || null,
-        respContabilId:body.respContabilId|| null,
-        respDpId:      body.respDpId      || null,
-        respSocietId:  body.respSocietId  || null,
-        respCarteiraId:body.respCarteiraId|| null,
-        respLiderId:      body.respLiderId      || null,
+        respFiscalId:  body.respFiscalId   !== undefined ? (body.respFiscalId   || null) : undefined,
+        respContabilId:body.respContabilId !== undefined ? (body.respContabilId || null) : undefined,
+        respDpId:      body.respDpId       !== undefined ? (body.respDpId       || null) : undefined,
+        respSocietId:  body.respSocietId   !== undefined ? (body.respSocietId   || null) : undefined,
+        respCarteiraId:body.respCarteiraId !== undefined ? (body.respCarteiraId || null) : undefined,
+        respLiderId:   body.respLiderId    !== undefined ? (body.respLiderId    || null) : undefined,
       },
     });
 
