@@ -36,12 +36,33 @@ async function copiaFixaEmails(): Promise<string[]> {
   }
 }
 
+// Botão mestre de Configurações > Automações ("E-mails automáticos
+// LIGADOS/DESLIGADOS"). Checado aqui, no ponto único por onde todo e-mail
+// do sistema passa — cobre tanto os do cron diário quanto os disparados na
+// hora (ex.: avisar novo responsável de carteira), sem precisar caçar
+// cada chamada de enviarEmail() espalhada pelo código.
+async function emailsPausados(): Promise<boolean> {
+  const { prisma } = await import("@/lib/prisma");
+  try {
+    const config = await prisma.configuracaoAutomacao.findUnique({ where: { id: "config" } });
+    return !!config?.pausadoGeral;
+  } catch (e) {
+    console.error("Erro ao checar se e-mails automáticos estão pausados:", e);
+    return false; // falha na checagem não pode travar e-mail nenhum
+  }
+}
+
 // `para` aceita um endereço só ou uma lista — nesse caso todo mundo entra
 // no MESMO e-mail (um único envio com vários destinatários), em vez de
 // mandar um e-mail separado pra cada um.
 export async function enviarEmail(params: { para: string | string[]; assunto: string; texto?: string; html?: string }) {
   const paraLista = (Array.isArray(params.para) ? params.para : [params.para]).filter(Boolean);
   if (paraLista.length === 0) return;
+
+  if (await emailsPausados()) {
+    console.log(`[e-mails automáticos pausados] Não enviado — Para: ${paraLista.join(", ")} — ${params.assunto}`);
+    return;
+  }
 
   const conf = await getTransporter();
   if (!conf) {
