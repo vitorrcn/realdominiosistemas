@@ -591,6 +591,43 @@ const ICF_LABEL: Record<string, { titulo: string; cor: string }> = {
   critico: { titulo: "Crítico", cor: COR.vrm },
 };
 
+// Faixas de classificação do ICF (ver classificar() em icf.ts) — mostradas
+// como regra/legenda no relatório, igual pedido pelo usuário, pra deixar
+// claro por que o resultado caiu em cada classificação.
+const ICF_FAIXAS: { classificacao: string; titulo: string; faixa: string; desc: string }[] = [
+  { classificacao: "saudavel", titulo: "Saudável", faixa: "até 3% do faturamento", desc: "Resultado compatível com a movimentação financeira do período." },
+  { classificacao: "atencao", titulo: "Atenção", faixa: "de 3% a 7% do faturamento", desc: "Pequena diferença; recomenda-se maior controle das movimentações." },
+  { classificacao: "risco", titulo: "Risco", faixa: "de 7% a 15% do faturamento", desc: "Diferença relevante, não totalmente sustentada por documentação." },
+  { classificacao: "critico", titulo: "Crítico", faixa: "acima de 15% do faturamento", desc: "Incompatibilidade significativa entre resultado e movimentação." },
+];
+
+function IcfLegenda({ classificacaoAtual }: { classificacaoAtual: string }) {
+  return (
+    <div className="rounded-lg overflow-hidden border mt-3" style={{ borderColor: COR.czm }}>
+      <div className="px-3 py-1.5 text-xs font-semibold text-white" style={{ background: COR.az2 }}>Regras de classificação (% do ICF sobre o faturamento)</div>
+      <table className="w-full text-xs">
+        <tbody>
+          {ICF_FAIXAS.map((f) => {
+            const atual = f.classificacao === classificacaoAtual;
+            const cor = ICF_LABEL[f.classificacao].cor;
+            return (
+              <tr key={f.classificacao} className="border-t border-gray-100" style={atual ? { background: COR.czc } : undefined}>
+                <td className="pl-3 py-1.5 w-2">
+                  <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: cor }} />
+                </td>
+                <td className={cn("px-2 py-1.5 whitespace-nowrap", atual ? "font-bold text-gray-900" : "text-gray-700")}>{f.titulo}</td>
+                <td className={cn("px-2 py-1.5 whitespace-nowrap", atual ? "font-semibold" : "text-gray-600")}>{f.faixa}</td>
+                <td className="px-2 py-1.5 text-gray-500">{f.desc}</td>
+                <td className="px-3 py-1.5 text-right whitespace-nowrap">{atual && <span className="text-[11px] font-bold" style={{ color: cor }}>◄ resultado atual</span>}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function IcfSection({ icf }: { icf: NonNullable<RelatorioFinanceiroSaida["icf"]> }) {
   const badge = ICF_LABEL[icf.classificacao];
   const linhas: { label: string; valor: number }[] = [
@@ -619,6 +656,8 @@ function IcfSection({ icf }: { icf: NonNullable<RelatorioFinanceiroSaida["icf"]>
           ICF: {fmtMoeda(icf.icfValor)} ({fmtPct(icf.icfPctFaturamento)} do faturamento)
         </span>
       </div>
+
+      <IcfLegenda classificacaoAtual={icf.classificacao} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
         <TabelaSimples titulo="Resultado Documentado" linhas={linhas} />
