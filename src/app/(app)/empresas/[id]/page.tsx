@@ -908,6 +908,8 @@ function AbaSocietario({ empresa, salvar, salvando, podeEditar, atualizarEmpresa
         onAtualizar={atualizarEmpresa}
       />
 
+      <HistoricoAlteracoesContratuais empresaId={empresa.id} podeEditar={podeEditar} />
+
       <AcessosSetor empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
       <ObrigacoesSetorResumo empresaId={empresa.id} setorNome="Societário" podeEditar={podeEditar} />
 
@@ -1330,6 +1332,108 @@ function AbaComercial({ empresa, salvar, salvando }: any) {
 
       <BotaoSalvar salvando={salvando} />
     </form>
+  );
+}
+
+// ── Histórico de alterações contratuais (aba Societário) ─────────────
+function HistoricoAlteracoesContratuais({ empresaId, podeEditar }: { empresaId: string; podeEditar: boolean }) {
+  const [itens, setItens] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [novo, setNovo] = useState({ data: hoje, descricao: "" });
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+
+  const buscar = useCallback(async () => {
+    setCarregando(true);
+    const res = await fetch(`/api/empresas/${empresaId}/alteracoes-contratuais`);
+    if (res.ok) setItens(await res.json());
+    setCarregando(false);
+  }, [empresaId]);
+
+  useEffect(() => { buscar(); }, [buscar]);
+
+  // Não usa <form> aqui de propósito: esse card é renderizado DENTRO do
+  // <form> grande da aba Societário inteira. Um <form> aninhado parece
+  // funcionar, mas o evento nativo "submit" continua propagando (React
+  // usa delegação de evento) e acaba também disparando o onSubmit do
+  // form de fora — resultado: ao salvar aqui, a aba inteira era salva
+  // de novo e voltava pra "Visão 360°" sem avisar nada. Por isso o botão
+  // é type="button" com onClick chamando criar() direto.
+  async function criar() {
+    if (!novo.data || !novo.descricao.trim()) return;
+    setSalvando(true);
+    const res = await fetch(`/api/empresas/${empresaId}/alteracoes-contratuais`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(novo),
+    });
+    setSalvando(false);
+    if (res.ok) {
+      setNovo({ data: hoje, descricao: "" });
+      setMostrarForm(false);
+      buscar();
+    }
+  }
+
+  async function excluir(id: string) {
+    if (!confirm("Excluir este registro do histórico?")) return;
+    await fetch(`/api/empresas/${empresaId}/alteracoes-contratuais/${id}`, { method: "DELETE" });
+    buscar();
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Histórico de alterações contratuais</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Registro de cada mudança no contrato social — sócios, capital, atividade, endereço etc.</p>
+        </div>
+        {podeEditar && (
+          <button type="button" onClick={() => setMostrarForm((v) => !v)} className="text-xs text-brand-600 hover:underline flex-shrink-0">
+            {mostrarForm ? "Cancelar" : "+ Registrar alteração"}
+          </button>
+        )}
+      </div>
+
+      {mostrarForm && podeEditar && (
+        <div className="pb-2 border-b border-gray-100 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-[160px_1fr] gap-2">
+            <input className="input text-sm" type="date" value={novo.data}
+              onChange={(e) => setNovo((p) => ({ ...p, data: e.target.value }))} required />
+            <input className="input text-sm" placeholder="O que mudou (ex: entrada do sócio Fulano com 30% de participação)"
+              value={novo.descricao} onChange={(e) => setNovo((p) => ({ ...p, descricao: e.target.value }))} required
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); criar(); } }} />
+          </div>
+          <button type="button" onClick={criar} disabled={salvando} className="btn btn-primary btn-sm">
+            {salvando ? "Salvando..." : "Salvar no histórico"}
+          </button>
+        </div>
+      )}
+
+      {carregando ? (
+        <p className="text-xs text-gray-400">Carregando...</p>
+      ) : itens.length === 0 ? (
+        <p className="text-xs text-gray-400">Nenhuma alteração contratual registrada ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {itens.map((it) => (
+            <div key={it.id} className="flex items-start justify-between gap-3 py-2 border-b border-gray-100 last:border-0">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-gray-500">{formatData(it.data)}</div>
+                <div className="text-sm text-gray-800 mt-0.5">{it.descricao}</div>
+                <div className="text-xs text-gray-400 mt-0.5">lançado por {it.criadoPor}</div>
+              </div>
+              {podeEditar && (
+                <button type="button" onClick={() => excluir(it.id)} className="text-xs text-red-500 hover:underline flex-shrink-0">
+                  Excluir
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

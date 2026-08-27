@@ -56,6 +56,7 @@ model Usuario {
   acessosCriados    AcessoSistema[]
   eventoHistoricos  EventoHistorico[]
   relacoesComerciaisCriadas RelacaoComercial[]
+  alteracoesContratuaisCriadas AlteracaoContratual[]
   @@map("usuarios")
 }
 
@@ -191,6 +192,7 @@ model Empresa {
   registrosAtividade RegistroAtividade[]
   relacoesPrestador  RelacaoComercial[] @relation("RelacaoPrestador")
   relacoesTomador    RelacaoComercial[] @relation("RelacaoTomador")
+  alteracoesContratuais AlteracaoContratual[]
   @@map("empresas")
 }
 
@@ -684,6 +686,23 @@ model AcessoSistema {
   setor         Setor    @relation(fields: [setorId], references: [id])
   criadoPor     Usuario  @relation(fields: [criadoPorId], references: [id])
   @@map("acessos_sistema")
+}
+
+// Historico de alteracoes contratuais da empresa - sempre que o contrato
+// social muda (troca de socio, capital, atividade, endereco etc.), fica
+// registrado aqui: data da alteracao + o que mudou. Aparece na aba
+// Societario, mais recente primeiro. Lancado manualmente, um registro por
+// alteracao (nao editavel depois de criado - so exclusao, se for engano).
+model AlteracaoContratual {
+  id          String   @id @default(uuid())
+  empresaId   String
+  data        DateTime // data em que a alteracao contratual entrou em vigor
+  descricao   String   // o que mudou nessa alteracao
+  criadoPorId String
+  createdAt   DateTime @default(now())
+  empresa     Empresa  @relation(fields: [empresaId], references: [id])
+  criadoPor   Usuario  @relation(fields: [criadoPorId], references: [id])
+  @@map("alteracoes_contratuais")
 }
 
 // Configuracao unica (sempre um registro so, id fixo "config") com os
