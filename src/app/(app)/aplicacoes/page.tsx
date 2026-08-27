@@ -13,6 +13,12 @@ const itens = [
     titulo: "Real Extratos",
     desc: "Converte extrato bancário em PDF para o formato de importação contábil Alterdata, já sugerindo débito/crédito",
   },
+  {
+    href: "/aplicacoes/relatorio-financeiro",
+    icon: "📊",
+    titulo: "Relatório Financeiro",
+    desc: "Gera o relatório financeiro em PDF a partir da planilha Banco de Dados, com resumo executivo, comparativo entre empresas e o indicador ICF",
+  },
 ];
 
 export default function AplicacoesPage() {
