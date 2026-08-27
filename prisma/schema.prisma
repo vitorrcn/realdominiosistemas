@@ -721,6 +721,11 @@ model ConfiguracaoEmail {
 // Configuracoes > Automacoes, sem precisar mexer em codigo.
 model ConfiguracaoAutomacao {
   id                            String   @id @default("config")
+  // Botão mestre: quando true, NENHUM e-mail automático sai (obrigações,
+  // carteira sem responsável, relatórios de horas), não importa o que
+  // estiver marcado abaixo. Pensado pra ligar/desligar rápido enquanto
+  // alguém mexe no sistema e não quer disparar e-mail pra ninguém.
+  pausadoGeral                  Boolean  @default(false)
   diasAntecedenciaVencimento    Int      @default(7)
   alertaObrigacoesAtivo         Boolean  @default(true)
   alertaCarteiraSemRespAtivo    Boolean  @default(true)

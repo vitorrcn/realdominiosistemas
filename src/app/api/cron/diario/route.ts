@@ -12,7 +12,9 @@ import {
 } from "@/lib/mail";
 
 // GET/POST /api/cron/diario — chamado uma vez por dia pelo Vercel Cron.
-// Faz, cada um sujeito ao seu próprio "ativo" em Configurações > Automações:
+// Se "pausadoGeral" estiver ligado em Configurações > Automações, não
+// manda e-mail nenhum (não olha os "ativo" individuais abaixo). Senão,
+// faz, cada um sujeito ao seu próprio "ativo":
 // 1. Todo dia: digest de obrigações pendentes (em atraso + vencendo dentro
 //    da janela configurada) num único e-mail por setor pros responsáveis
 //    das empresas pendentes + supervisores do setor, e alerta de empresa
@@ -36,6 +38,7 @@ function autorizado(req: NextRequest): boolean {
 const BASE_URL = process.env.NEXTAUTH_URL || "";
 
 const CONFIG_PADRAO = {
+  pausadoGeral: false,
   diasAntecedenciaVencimento: 7,
   alertaObrigacoesAtivo: true,
   alertaCarteiraSemRespAtivo: true,
@@ -349,6 +352,11 @@ async function handler(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const config = await buscarConfig();
+
+  if (config.pausadoGeral) {
+    return NextResponse.json({ ok: true, pausado: true, mensagem: "E-mails automáticos pausados em Configurações > Automações." });
+  }
+
   const resultado: Record<string, number> = {};
 
   if (config.alertaObrigacoesAtivo) {

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const DEFAULTS = {
+  pausadoGeral: false,
   diasAntecedenciaVencimento: 7,
   alertaObrigacoesAtivo: true,
   alertaCarteiraSemRespAtivo: true,
@@ -26,6 +27,7 @@ export async function GET() {
 
   const config = await prisma.configuracaoAutomacao.findUnique({ where: { id: "config" } });
   return NextResponse.json({
+    pausadoGeral: config?.pausadoGeral ?? DEFAULTS.pausadoGeral,
     diasAntecedenciaVencimento: config?.diasAntecedenciaVencimento ?? DEFAULTS.diasAntecedenciaVencimento,
     alertaObrigacoesAtivo: config?.alertaObrigacoesAtivo ?? DEFAULTS.alertaObrigacoesAtivo,
     alertaCarteiraSemRespAtivo: config?.alertaCarteiraSemRespAtivo ?? DEFAULTS.alertaCarteiraSemRespAtivo,
@@ -50,6 +52,7 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      pausadoGeral,
       diasAntecedenciaVencimento, alertaObrigacoesAtivo, alertaCarteiraSemRespAtivo,
       relatorioIndividualAtivo, relatorioIndividualDiaSemana,
       relatorioComparativoAtivo, relatorioComparativoDiaSemana,
@@ -67,6 +70,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Dia da semana inválido" }, { status: 400 });
 
     const data = {
+      pausadoGeral: !!pausadoGeral,
       diasAntecedenciaVencimento: dias,
       alertaObrigacoesAtivo: !!alertaObrigacoesAtivo,
       alertaCarteiraSemRespAtivo: !!alertaCarteiraSemRespAtivo,

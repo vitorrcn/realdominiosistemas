@@ -52,12 +52,35 @@ export default function ConfigAutomacaoPage() {
         <h1 className="text-lg font-semibold text-gray-900">Automações e alertas por e-mail</h1>
         <p className="text-sm text-gray-500 mt-1">
           Controla os e-mails automáticos disparados todo dia pelo sistema — obrigações pendentes,
-          carteira sem responsável e relatórios semanais de horas.
+          carteira sem responsável e relatórios semanais de horas. Use o botão abaixo pra desligar tudo
+          de uma vez (útil enquanto você estiver mexendo no sistema).
         </p>
       </div>
 
       <form onSubmit={salvar} className="space-y-4">
-        <div className="card space-y-4">
+        <div className={`card flex items-center justify-between gap-4 border-2 ${form.pausadoGeral ? "border-amber-300 bg-amber-50" : "border-green-200 bg-green-50"}`}>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">
+              {form.pausadoGeral ? "🔕 E-mails automáticos DESLIGADOS" : "🔔 E-mails automáticos LIGADOS"}
+            </h3>
+            <p className="text-xs text-gray-600 mt-0.5">
+              {form.pausadoGeral
+                ? "Nenhum e-mail automático vai sair (obrigações, carteira sem responsável, relatórios de horas), mesmo com os itens abaixo marcados. Útil enquanto você mexe no sistema."
+                : "Os e-mails automáticos abaixo saem normalmente, conforme cada um estiver configurado."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!form.pausadoGeral}
+            onClick={() => set("pausadoGeral", !form.pausadoGeral)}
+            className={`relative flex-shrink-0 w-14 h-8 rounded-full transition-colors ${form.pausadoGeral ? "bg-gray-300" : "bg-green-500"}`}
+          >
+            <span className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${form.pausadoGeral ? "" : "translate-x-6"}`} />
+          </button>
+        </div>
+
+        <div className={`card space-y-4 ${form.pausadoGeral ? "opacity-50 pointer-events-none" : ""}`}>
           <h3 className="text-sm font-semibold text-gray-900">Obrigações pendentes</h3>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
@@ -78,7 +101,7 @@ export default function ConfigAutomacaoPage() {
           </div>
         </div>
 
-        <div className="card space-y-3">
+        <div className={`card space-y-3 ${form.pausadoGeral ? "opacity-50 pointer-events-none" : ""}`}>
           <h3 className="text-sm font-semibold text-gray-900">Carteira sem responsável</h3>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
@@ -90,7 +113,7 @@ export default function ConfigAutomacaoPage() {
           </label>
         </div>
 
-        <div className="card space-y-4">
+        <div className={`card space-y-4 ${form.pausadoGeral ? "opacity-50 pointer-events-none" : ""}`}>
           <h3 className="text-sm font-semibold text-gray-900">Relatórios semanais de horas</h3>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
