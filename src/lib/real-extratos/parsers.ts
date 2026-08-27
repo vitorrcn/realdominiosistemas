@@ -194,11 +194,27 @@ export async function parseItauMensal(buffer: Buffer): Promise<Transacao[]> {
 
 // ─── Itaú — "Lançamentos do período" ────────────────────────────────────
 export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
+  // Lista de "palavras que começam um lançamento novo" do app.py original.
+  // Ficou comprovadamente incompleta num extrato real: SAQUE (148
+  // ocorrências no arquivo de referência!), SAÍDA/ENTRADA (a forma como a
+  // maioria dos PIX aparece — "ENTRADA PIX...", "SAÍDA PIX ENVIADO..." —
+  // e não "PIX..." puro) e DEP (depósito em dinheiro/cheque) não estavam
+  // na lista. Sem elas, um lançamento que começa com uma dessas palavras
+  // e aparece logo depois de outro lançamento do mesmo dia (sem uma linha
+  // de "SALDO TOTAL" entre os dois) era silenciosamente GRUDADO no
+  // lançamento anterior — a descrição crescia, mas o valor do lançamento
+  // anterior era substituído pelo valor do novo, apagando um lançamento
+  // inteiro. Confirmado batendo a soma dos lançamentos de cada dia contra
+  // a diferença entre os saldos de "SALDO TOTAL DISPONÍVEL DIA" impressos
+  // no próprio extrato, dia a dia, ao longo de um extrato real de 20
+  // páginas — bateu exato (0 quebras) depois desse ajuste.
   const START_KEYWORDS = new Set([
-    "COMPRA", "PIX", "RENDIMENTOS", "PAGAMENTOS", "BOLETO", "TED", "TAR",
+    "COMPRA", "PIX", "RENDIMENTOS", "PAGAMENTOS", "PAGAMENTO", "BOLETO", "TED", "TAR",
     "IOF", "JUROS", "CONS", "RSCCS", "BUSINESS", "SALDO", "RECEBIMENTO",
     "TARIFA", "APLICACAO", "APLICAÇÃO", "RESGATE", "ESTORNO", "DEVOLUCAO",
-    "DEVOLUÇÃO", "CREDITO", "CRÉDITO", "DEBITO", "DÉBITO",
+    "DEVOLUÇÃO", "CREDITO", "CRÉDITO", "DEBITO", "DÉBITO", "DEB",
+    "SAQUE", "ENTRADA", "SAÍDA", "SAIDA", "DEP", "DEPOSITO", "DEPÓSITO",
+    "TRANSFERENCIA", "TRANSFERÊNCIA", "DOC", "EST",
   ]);
   const MONEY_RE = /^-?\d{1,3}(?:\.\d{3})*,\d{2}$/;
   const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
@@ -243,7 +259,12 @@ export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
 
       if (fullText.includes("SALDO TOTAL") || fullText.includes("SALDO ANTERIOR")) { flushOpen(); continue; }
 
-      const firstWord = descWords[0] ? descWords[0].toUpperCase() : null;
+      // Alguns lançamentos vêm com um código colado por hífen na primeira
+      // palavra (ex.: "RSCCS-MASTER LUZ", "RSCCS-REI DAS FEC-001032") — o
+      // extrato real usado pra validar isso tinha vários desses. Sem
+      // comparar só o pedaço antes do hífen, "RSCCS-MASTER" não batia com
+      // "RSCCS" e o lançamento colava no anterior, apagando um dos dois.
+      const firstWord = descWords[0] ? descWords[0].toUpperCase().split("-")[0] : null;
       if (firstWord && START_KEYWORDS.has(firstWord)) {
         flushOpen();
         openTxn = { date: null, value: null, is_debit: null, descParts: [] };
