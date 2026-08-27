@@ -71,6 +71,32 @@ export const authOptions: NextAuthOptions = {
         token.podeVerComercial = (user as any).podeVerComercial;
         token.podeVerRelacoesComerciais = (user as any).podeVerRelacoesComerciais;
         token.setores = (user as any).setores;
+        token.setoresAtualizadoEm = Date.now();
+        return token;
+      }
+
+      // Nas chamadas seguintes (não é o login em si): busca perfil/setores/
+      // flags direto do banco de novo, a cada ~15s no máximo. Sem isso, a
+      // sessão ficava "presa" no que valia no momento do login — se alguém
+      // liberasse um setor novo pra uma pessoa já logada, ela só via o
+      // efeito depois de sair e entrar de novo (aconteceu mais de uma vez).
+      const ultimaAtualizacao = (token.setoresAtualizadoEm as number | undefined) ?? 0;
+      if (token.id && Date.now() - ultimaAtualizacao > 15_000) {
+        const usuario = await prisma.usuario.findUnique({
+          where: { id: token.id as string },
+          include: { setores: { include: { setor: { select: { id: true, nome: true } } } } },
+        });
+        if (usuario && usuario.ativo) {
+          token.perfilGlobal = usuario.perfilGlobal;
+          token.podeVerComercial = usuario.podeVerComercial;
+          token.podeVerRelacoesComerciais = usuario.podeVerRelacoesComerciais;
+          token.setores = usuario.setores.map((us) => ({
+            setorId: us.setorId,
+            nome: us.setor.nome,
+            papel: us.papel,
+          }));
+        }
+        token.setoresAtualizadoEm = Date.now();
       }
       return token;
     },
