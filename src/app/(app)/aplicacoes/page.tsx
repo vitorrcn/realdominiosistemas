@@ -7,6 +7,12 @@ const itens = [
     titulo: "Simulador Tributário",
     desc: "Simples Nacional, Lucro Presumido e comparativo entre cenários para apresentar ao cliente",
   },
+  {
+    href: "/aplicacoes/real-extratos",
+    icon: "🏦",
+    titulo: "Real Extratos",
+    desc: "Converte extrato bancário em PDF para o formato de importação contábil Alterdata, já sugerindo débito/crédito",
+  },
 ];
 
 export default function AplicacoesPage() {
