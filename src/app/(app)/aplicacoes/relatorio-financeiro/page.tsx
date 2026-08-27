@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { fmtMoeda, fmtPct, fmtPctJaEmPercentual } from "@/lib/tributario/formatadores";
-import type { IcfEntradaDados, ModoVisao, RelatorioFinanceiroSaida } from "@/lib/relatorio-financeiro/tipos";
+import type { IcfEntradaDados, ModoGeracao, ModoVisao, RelatorioFinanceiroSaida } from "@/lib/relatorio-financeiro/tipos";
 
 // Paleta do relatório em PDF original (relatorio_financeiro.py), mantida
 // aqui pra o relatório impresso continuar com a cara que o cliente já
@@ -39,7 +39,25 @@ const ICF_VAZIO: IcfEntradaDados = {
   retiradas: "", amortizacao: "", ativos: "", saldoInicial: "", saldoFinal: "",
 };
 
+const OPCOES_MODO_GERACAO: { valor: ModoGeracao; titulo: string; desc: string }[] = [
+  { valor: "completo", titulo: "Completo, sem indicador", desc: "Resumo, tabelas por categoria e resultado consolidado — como já era." },
+  { valor: "resumo", titulo: "Apenas o resumo", desc: "Só o Resumo Executivo, com base na planilha importada." },
+  { valor: "indicador", titulo: "Apenas o indicador (ICF)", desc: "Só o cálculo do ICF — nem precisa da planilha." },
+  { valor: "resumo_indicador", titulo: "Resumo + indicador", desc: "Resumo Executivo e o ICF, sem as tabelas por categoria." },
+  { valor: "tudo", titulo: "Tudo", desc: "Completo + o Indicador de Compatibilidade Financeira." },
+];
+
 export default function RelatorioFinanceiroPage() {
+  const [modoGeracao, setModoGeracao] = useState<ModoGeracao>("completo");
+  const precisaExcel = modoGeracao !== "indicador";
+  const mostrarTabelas = modoGeracao === "completo" || modoGeracao === "tudo";
+  const mostrarIcf = modoGeracao === "indicador" || modoGeracao === "resumo_indicador" || modoGeracao === "tudo";
+
+  function mudarModoGeracao(m: ModoGeracao) {
+    setModoGeracao(m);
+    if (m !== "completo" && m !== "tudo") setComparativoAtivo(false);
+  }
+
   // Arquivo principal
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [mesesDisp, setMesesDisp] = useState<string[]>([]);
@@ -64,7 +82,6 @@ export default function RelatorioFinanceiroPage() {
   const [carregandoMesesComp, setCarregandoMesesComp] = useState(false);
 
   // ICF
-  const [icfAtivo, setIcfAtivo] = useState(false);
   const [icf, setIcf] = useState<IcfEntradaDados>(ICF_VAZIO);
 
   const [gerando, setGerando] = useState(false);
@@ -124,24 +141,25 @@ export default function RelatorioFinanceiroPage() {
 
   async function gerar() {
     setErro(null);
-    if (!arquivo) return setErro("Selecione o arquivo Excel principal (Banco de Dados).");
+    if (precisaExcel && !arquivo) return setErro("Selecione o arquivo Excel principal (Banco de Dados).");
     if (!empresa.trim()) return setErro("Informe o nome da empresa.");
     if (!mesIni || !mesFim) return setErro("Informe o período do relatório.");
     if (comparativoAtivo && !arquivoComp) return setErro("Selecione o arquivo Excel da empresa comparativa.");
+    if (mostrarIcf && !icf.faturamento.trim()) return setErro("Preencha ao menos o faturamento do indicador (ICF).");
 
     setGerando(true);
     try {
       const fd = new FormData();
-      fd.append("excel", arquivo);
+      if (arquivo) fd.append("excel", arquivo);
       if (comparativoAtivo && arquivoComp) fd.append("excelComparativo", arquivoComp);
       fd.append(
         "config",
         JSON.stringify({
-          empresa, cnpj, responsavel, textoIntro, textoConclusao, mesIni, mesFim, modo,
+          empresa, cnpj, responsavel, textoIntro, textoConclusao, mesIni, mesFim, modo, modoGeracao,
           compEmpresa: comparativoAtivo ? compEmpresa : undefined,
           compMesIni: comparativoAtivo ? compMesIni || mesIni : undefined,
           compMesFim: comparativoAtivo ? compMesFim || mesFim : undefined,
-          icf: icfAtivo ? icf : undefined,
+          icf: mostrarIcf ? icf : undefined,
         })
       );
       const resp = await fetch("/api/relatorio-financeiro/gerar", { method: "POST", body: fd });
@@ -174,7 +192,29 @@ export default function RelatorioFinanceiroPage() {
 
       <div className="card space-y-5">
         <div>
-          <label className="label">Planilha &quot;Banco de Dados&quot; (.xlsx)</label>
+          <label className="label">Tipo de relatório</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+            {OPCOES_MODO_GERACAO.map((o) => (
+              <button
+                key={o.valor}
+                type="button"
+                onClick={() => mudarModoGeracao(o.valor)}
+                className={cn(
+                  "text-left px-3 py-2.5 rounded-lg border transition-colors",
+                  modoGeracao === o.valor ? "bg-brand-50 border-brand-400" : "bg-white border-gray-200 hover:bg-gray-50"
+                )}
+              >
+                <div className={cn("text-sm font-semibold", modoGeracao === o.valor ? "text-brand-700" : "text-gray-800")}>{o.titulo}</div>
+                <div className="text-xs text-gray-500 mt-0.5">{o.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="label">
+            Planilha &quot;Banco de Dados&quot; (.xlsx){!precisaExcel && " (opcional nesse tipo de relatório)"}
+          </label>
           <input
             type="file"
             accept=".xlsx,.xls"
@@ -189,7 +229,7 @@ export default function RelatorioFinanceiroPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className={cn("grid grid-cols-1 gap-3", mostrarTabelas ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
           <div>
             <label className="label">Período — de</label>
             <SeletorMes valor={mesIni} onMudar={setMesIni} opcoes={mesesDisp} />
@@ -198,24 +238,26 @@ export default function RelatorioFinanceiroPage() {
             <label className="label">Período — até</label>
             <SeletorMes valor={mesFim} onMudar={setMesFim} opcoes={mesesDisp} />
           </div>
-          <div>
-            <label className="label">Visão</label>
-            <div className="flex gap-1.5 pt-1">
-              {(["mensal", "trimestral", "anual"] as ModoVisao[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setModo(m)}
-                  className={cn(
-                    "flex-1 px-2 py-2 text-xs font-medium rounded-lg border capitalize",
-                    modo === m ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                  )}
-                >
-                  {m}
-                </button>
-              ))}
+          {mostrarTabelas && (
+            <div>
+              <label className="label">Visão</label>
+              <div className="flex gap-1.5 pt-1">
+                {(["mensal", "trimestral", "anual"] as ModoVisao[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setModo(m)}
+                    className={cn(
+                      "flex-1 px-2 py-2 text-xs font-medium rounded-lg border capitalize",
+                      modo === m ? "bg-brand-600 text-white border-brand-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                    )}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -245,45 +287,44 @@ export default function RelatorioFinanceiroPage() {
           </div>
         </div>
 
-        {/* Comparativo */}
-        <div className="border-t border-gray-100 pt-4">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={comparativoAtivo} onChange={(e) => setComparativoAtivo(e.target.checked)} className="rounded" />
-            Comparar com outra empresa
-          </label>
-          {comparativoAtivo && (
-            <div className="mt-3 space-y-3 pl-1">
-              <div>
-                <label className="label">Planilha &quot;Banco de Dados&quot; da empresa comparativa (.xlsx)</label>
-                <input type="file" accept=".xlsx,.xls" onChange={(e) => onArquivoComparativo(e.target.files?.[0] || null)} className="input" />
-                {carregandoMesesComp && <p className="text-xs text-gray-400 mt-1">Lendo meses disponíveis…</p>}
+        {/* Comparativo — só faz sentido nos tipos com tabelas por categoria */}
+        {mostrarTabelas && (
+          <div className="border-t border-gray-100 pt-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={comparativoAtivo} onChange={(e) => setComparativoAtivo(e.target.checked)} className="rounded" />
+              Comparar com outra empresa
+            </label>
+            {comparativoAtivo && (
+              <div className="mt-3 space-y-3 pl-1">
+                <div>
+                  <label className="label">Planilha &quot;Banco de Dados&quot; da empresa comparativa (.xlsx)</label>
+                  <input type="file" accept=".xlsx,.xls" onChange={(e) => onArquivoComparativo(e.target.files?.[0] || null)} className="input" />
+                  {carregandoMesesComp && <p className="text-xs text-gray-400 mt-1">Lendo meses disponíveis…</p>}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="label">Nome da empresa comparativa</label>
+                    <input className="input" value={compEmpresa} onChange={(e) => setCompEmpresa(e.target.value)} placeholder="Razão social" />
+                  </div>
+                  <div>
+                    <label className="label">Período comparativo — de</label>
+                    <SeletorMes valor={compMesIni} onMudar={setCompMesIni} opcoes={mesesDispComp} />
+                  </div>
+                  <div>
+                    <label className="label">Período comparativo — até</label>
+                    <SeletorMes valor={compMesFim} onMudar={setCompMesFim} opcoes={mesesDispComp} />
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="label">Nome da empresa comparativa</label>
-                  <input className="input" value={compEmpresa} onChange={(e) => setCompEmpresa(e.target.value)} placeholder="Razão social" />
-                </div>
-                <div>
-                  <label className="label">Período comparativo — de</label>
-                  <SeletorMes valor={compMesIni} onMudar={setCompMesIni} opcoes={mesesDispComp} />
-                </div>
-                <div>
-                  <label className="label">Período comparativo — até</label>
-                  <SeletorMes valor={compMesFim} onMudar={setCompMesFim} opcoes={mesesDispComp} />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* ICF */}
-        <div className="border-t border-gray-100 pt-4">
-          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
-            <input type="checkbox" checked={icfAtivo} onChange={(e) => setIcfAtivo(e.target.checked)} className="rounded" />
-            Incluir Indicador de Compatibilidade Financeira (ICF)
-          </label>
-          {icfAtivo && (
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3 pl-1">
+        {/* ICF — aparece automaticamente quando o tipo de relatório escolhido inclui o indicador */}
+        {mostrarIcf && (
+          <div className="border-t border-gray-100 pt-4">
+            <div className="text-sm font-medium text-gray-700">Indicador de Compatibilidade Financeira (ICF)</div>
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
               {CAMPOS_ICF.map((c) => (
                 <div key={c.key}>
                   <label className="label">{c.label}</label>
@@ -296,8 +337,8 @@ export default function RelatorioFinanceiroPage() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {erro && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{erro}</div>}
 
@@ -342,17 +383,17 @@ function RelatorioOverlay({ relatorio, onFechar }: { relatorio: RelatorioFinance
           <CabecalhoRelatorio relatorio={relatorio} />
           <div className="p-8 space-y-6">
             <BoxIntroducao relatorio={relatorio} />
-            <ResumoExecutivoView relatorio={relatorio} />
-            <BlocoView titulo="Vendas" cor={COR.az2} bloco={relatorio.vendas} relatorio={relatorio} />
-            <BlocoView titulo="Custos" cor={COR.az2} bloco={relatorio.custos} relatorio={relatorio} />
-            <BlocoView titulo="Despesas Operacionais" cor={COR.az2} bloco={relatorio.despesas} relatorio={relatorio} />
+            {relatorio.resumo && <ResumoExecutivoView resumo={relatorio.resumo} />}
+            {relatorio.vendas && <BlocoView titulo="Vendas" cor={COR.az2} bloco={relatorio.vendas} relatorio={relatorio} />}
+            {relatorio.custos && <BlocoView titulo="Custos" cor={COR.az2} bloco={relatorio.custos} relatorio={relatorio} />}
+            {relatorio.despesas && <BlocoView titulo="Despesas Operacionais" cor={COR.az2} bloco={relatorio.despesas} relatorio={relatorio} />}
             {relatorio.societarioInvestimentos && (
               <BlocoView titulo="Societário e Investimentos" cor={COR.lar} bloco={relatorio.societarioInvestimentos} relatorio={relatorio} />
             )}
             {relatorio.transferencias && (
               <BlocoView titulo="Transferências" cor={COR.rxa} bloco={relatorio.transferencias} relatorio={relatorio} />
             )}
-            <ResultadoConsolidadoView relatorio={relatorio} />
+            {relatorio.resultadoConsolidado && <ResultadoConsolidadoView relatorio={relatorio} bloco={relatorio.resultadoConsolidado} />}
             {relatorio.icf && <IcfSection icf={relatorio.icf} />}
             {relatorio.textoConclusao && (
               <div>
@@ -378,7 +419,7 @@ function CabecalhoRelatorio({ relatorio }: { relatorio: RelatorioFinanceiroSaida
         </div>
         <div className="text-right text-xs opacity-80">
           <div>Emitido em {relatorio.dataEmissao}</div>
-          <div>Visão {relatorio.modoLabel}</div>
+          {relatorio.colLabels.length > 0 && <div>Visão {relatorio.modoLabel}</div>}
         </div>
       </div>
       <div className="mt-4 pt-4 border-t border-white/20 flex flex-wrap gap-x-8 gap-y-1 text-sm">
@@ -395,9 +436,10 @@ function CabecalhoRelatorio({ relatorio }: { relatorio: RelatorioFinanceiroSaida
 }
 
 function BoxIntroducao({ relatorio }: { relatorio: RelatorioFinanceiroSaida }) {
+  if (!relatorio.textoIntroFixo && !relatorio.textoIntroCustom) return null;
   return (
     <div className="rounded-lg p-4 text-sm text-gray-700 leading-relaxed space-y-3" style={{ background: COR.czc, border: `1px solid ${COR.czm}` }}>
-      <p>{relatorio.textoIntroFixo}</p>
+      {relatorio.textoIntroFixo && <p>{relatorio.textoIntroFixo}</p>}
       {relatorio.textoIntroCustom && <p className="whitespace-pre-line">{relatorio.textoIntroCustom}</p>}
     </div>
   );
@@ -411,8 +453,7 @@ function TituloSecao({ texto, cor }: { texto: string; cor: string }) {
   );
 }
 
-function ResumoExecutivoView({ relatorio }: { relatorio: RelatorioFinanceiroSaida }) {
-  const r = relatorio.resumo;
+function ResumoExecutivoView({ resumo: r }: { resumo: NonNullable<RelatorioFinanceiroSaida["resumo"]> }) {
   const kpis: { label: string; valor: number; cor?: "pos" | "neg" | "auto" }[] = [
     { label: "Entradas", valor: r.entradas, cor: "pos" },
     { label: "Saídas", valor: r.saidas, cor: "neg" },
@@ -449,7 +490,7 @@ function BlocoView({
   titulo, cor, bloco, relatorio,
 }: {
   titulo: string; cor: string;
-  bloco: { titulo: string; linhas: RelatorioFinanceiroSaida["vendas"]["linhas"] };
+  bloco: NonNullable<RelatorioFinanceiroSaida["vendas"]>;
   relatorio: RelatorioFinanceiroSaida;
 }) {
   if (bloco.linhas.length === 0) return null;
@@ -503,8 +544,7 @@ function BlocoView({
   );
 }
 
-function ResultadoConsolidadoView({ relatorio }: { relatorio: RelatorioFinanceiroSaida }) {
-  const bloco = relatorio.resultadoConsolidado;
+function ResultadoConsolidadoView({ relatorio, bloco }: { relatorio: RelatorioFinanceiroSaida; bloco: NonNullable<RelatorioFinanceiroSaida["resultadoConsolidado"]> }) {
   return (
     <div className="print:break-inside-avoid">
       <TituloSecao texto="Resultado Consolidado" cor={COR.az1} />

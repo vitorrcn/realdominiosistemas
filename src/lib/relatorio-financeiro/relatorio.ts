@@ -11,7 +11,7 @@
 import { agrupar, estruturar, mesIdx, type EstruturaComHelpers } from "./excel";
 import { calcularIcf } from "./icf";
 import type {
-  BlocoTabela, ConfigRelatorioFinanceiro, GrupoTempo, LinhaTabela,
+  BlocoTabela, ConfigRelatorioFinanceiro, GrupoTempo, LinhaTabela, ModoGeracao,
   RelatorioFinanceiroSaida, ResumoExecutivo,
 } from "./tipos";
 
@@ -120,100 +120,143 @@ function saldoPeriodo(estrutura: EstruturaComHelpers, mesIni: string, mesFim: st
 
 const MODO_LABEL: Record<string, string> = { mensal: "Mensal", trimestral: "Trimestral", anual: "Anual" };
 
+// Quais seções cada tipo de relatório inclui — reflete a tela de opções
+// pedida pelo usuário (o "índice" do app original sempre fazia um cálculo
+// à parte, independente das tabelas por categoria).
+function precisaDe(modoGeracao: ModoGeracao) {
+  return {
+    excel: modoGeracao !== "indicador",
+    resumo: modoGeracao !== "indicador",
+    tabelas: modoGeracao === "completo" || modoGeracao === "tudo",
+    icf: modoGeracao === "indicador" || modoGeracao === "resumo_indicador" || modoGeracao === "tudo",
+  };
+}
+
 export function gerarRelatorio(
-  linhasExcel: any[][],
+  linhasExcel: any[][] | null,
   linhasExcelComparativo: any[][] | null,
   config: ConfigRelatorioFinanceiro
 ): RelatorioFinanceiroSaida {
-  const estrutura = estruturar(linhasExcel, config.mesIni, config.mesFim);
-  if (estrutura.mesesDisp.length === 0) {
-    throw new Error(
-      `Nenhum dado para ${config.mesIni}–${config.mesFim}. Disponíveis: ${estrutura.todosMeses.join(", ")}`
-    );
+  const modoGeracao: ModoGeracao = config.modoGeracao || "completo";
+  const necessario = precisaDe(modoGeracao);
+
+  if (necessario.icf && !config.icf) {
+    throw new Error("Preencha os dados do Indicador de Compatibilidade Financeira (ICF).");
   }
 
+  let estrutura: EstruturaComHelpers | null = null;
   let comparativo: ComparativoCtx | null = null;
-  if (linhasExcelComparativo) {
-    const estruturaComp = estruturar(
-      linhasExcelComparativo,
-      config.compMesIni || config.mesIni,
-      config.compMesFim || config.mesFim
-    );
-    comparativo = { estrutura: estruturaComp, gruposTempo: agrupar(estruturaComp.mesesDisp, config.modo) };
+  let gruposTempo: GrupoTempo[] = [];
+  let colLabels: string[] = [];
+  let temTotal = false;
+
+  let resumo: ResumoExecutivo | null = null;
+  let vendas: BlocoTabela | null = null;
+  let custos: BlocoTabela | null = null;
+  let despesas: BlocoTabela | null = null;
+  let societarioInvestimentos: BlocoTabela | null = null;
+  let transferencias: BlocoTabela | null = null;
+  let resultadoConsolidado: BlocoTabela | null = null;
+
+  if (necessario.excel) {
+    if (!linhasExcel || linhasExcel.length === 0) {
+      throw new Error("Selecione o arquivo Excel principal (Banco de Dados).");
+    }
+    estrutura = estruturar(linhasExcel, config.mesIni, config.mesFim);
+    if (estrutura.mesesDisp.length === 0) {
+      throw new Error(
+        `Nenhum dado para ${config.mesIni}–${config.mesFim}. Disponíveis: ${estrutura.todosMeses.join(", ")}`
+      );
+    }
+
+    if (necessario.tabelas && linhasExcelComparativo) {
+      const estruturaComp = estruturar(
+        linhasExcelComparativo,
+        config.compMesIni || config.mesIni,
+        config.compMesFim || config.mesFim
+      );
+      comparativo = { estrutura: estruturaComp, gruposTempo: agrupar(estruturaComp.mesesDisp, config.modo) };
+    }
+
+    gruposTempo = agrupar(estrutura.mesesDisp, config.modo);
+    colLabels = gruposTempo.map((g) => g.label);
+    temTotal = gruposTempo.length > 1 && config.modo !== "anual";
+
+    if (necessario.resumo) {
+      resumo = {
+        entradas: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Entradas"),
+        saidas: Math.abs(somaPeriodo(estrutura, config.mesIni, config.mesFim, "Saídas")),
+        societario: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Societário"),
+        resultado: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Resultado"),
+        saldoInicial: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Anterior (Banco)"),
+        saldoFinal: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Final (Banco)"),
+      };
+    }
+
+    if (necessario.tabelas) {
+      const receitaTotal = somaTotalGrupo(estrutura, gruposTempo, "1") || 1;
+
+      // ── Blocos por categoria ───────────────────────────────────────
+      vendas = construirBloco(estrutura, gruposTempo, ["1"], comparativo);
+      custos = construirBloco(estrutura, gruposTempo, ["2"], comparativo);
+
+      const despesasCods = estrutura.gruposPrincipais.filter((g) => g.codigo >= 3 && g.codigo <= 12).map((g) => g.codigoStr);
+      despesas = construirBloco(estrutura, gruposTempo, despesasCods, comparativo);
+
+      const socInvCods = estrutura.gruposPrincipais.filter((g) => [13, 14].includes(g.codigo)).map((g) => g.codigoStr);
+      societarioInvestimentos = socInvCods.length ? construirBloco(estrutura, gruposTempo, socInvCods, comparativo) : null;
+
+      const transfCods = estrutura.gruposPrincipais.filter((g) => [0, 94, 95, 98, 99].includes(g.codigo)).map((g) => g.codigoStr);
+      transferencias = transfCods.length ? construirBloco(estrutura, gruposTempo, transfCods, comparativo) : null;
+
+      // ── Resultado consolidado (DRE + fluxo de caixa) — nunca tem
+      // comparativo, igual no app original (só as tabelas por categoria
+      // acima mostram a empresa comparativa lado a lado). ─────────────
+      const estruturaFixa = estrutura;
+      const gruposTempoFixo = gruposTempo;
+      function linhaRes(rotulo: string, cods: string[], negrito: boolean): { linha: LinhaTabela; serie: number[] } {
+        const serie = gruposTempoFixo.map((gt) => cods.reduce((s, c) => s + somaGrupo(estruturaFixa, gt.meses, c), 0));
+        const tot = serie.reduce((a, b) => a + b, 0);
+        const pct = receitaTotal ? (Math.abs(tot) / Math.abs(receitaTotal)) * 100 : 0;
+        return { linha: { label: rotulo, negrito, indentado: false, valores: serie, total: tot, pctVendas: pct }, serie };
+      }
+      function linhaSubtotal(rotulo: string, serie: number[]): LinhaTabela {
+        const tot = serie.reduce((a, b) => a + b, 0);
+        const pct = receitaTotal ? (Math.abs(tot) / Math.abs(receitaTotal)) * 100 : 0;
+        return { label: `= ${rotulo}`, negrito: true, indentado: false, valores: serie, total: tot, pctVendas: pct };
+      }
+
+      const resLinhas: LinhaTabela[] = [];
+      const { linha: c1, serie: s1 } = linhaRes(estruturaFixa.nome("1"), ["1"], false); resLinhas.push(c1);
+      const { linha: c2, serie: s2 } = linhaRes(estruturaFixa.nome("2"), ["2"], false); resLinhas.push(c2);
+      const { linha: c3, serie: s3 } = linhaRes(estruturaFixa.nome("3"), ["3"], false); resLinhas.push(c3);
+      const { linha: c4, serie: s4 } = linhaRes(estruturaFixa.nome("4"), ["4"], false); resLinhas.push(c4);
+      const { linha: c5, serie: s5 } = linhaRes(estruturaFixa.nome("5"), ["5"], false); resLinhas.push(c5);
+      const { linha: c6, serie: s6 } = linhaRes(estruturaFixa.nome("6"), ["6"], false); resLinhas.push(c6);
+      const { linha: c7, serie: s7 } = linhaRes(estruturaFixa.nome("7"), ["7"], false); resLinhas.push(c7);
+      const { linha: c8, serie: s8 } = linhaRes(estruturaFixa.nome("8"), ["8"], false); resLinhas.push(c8);
+      const { linha: c9, serie: s9 } = linhaRes(estruturaFixa.nome("9"), ["9"], false); resLinhas.push(c9);
+      const opSerie = somaSeries(s1, s2, s3, s4, s5, s6, s7, s8, s9);
+      resLinhas.push(linhaSubtotal("Resultado Operacional", opSerie));
+
+      const { linha: c12, serie: s12 } = linhaRes(estruturaFixa.nome("12"), ["12"], false); resLinhas.push(c12);
+      const { linha: c10, serie: s10 } = linhaRes(estruturaFixa.nome("10"), ["10"], false); resLinhas.push(c10);
+      const { linha: c11, serie: s11 } = linhaRes(estruturaFixa.nome("11"), ["11"], false); resLinhas.push(c11);
+      const finSerie = somaSeries(opSerie, s12, s10, s11);
+      resLinhas.push(linhaSubtotal("Resultado Financeiro", finSerie));
+
+      const { linha: ca1, serie: sa1 } = linhaRes(estruturaFixa.nome("13.1"), ["13.1"], false); resLinhas.push(ca1);
+      const { linha: ca2, serie: sa2 } = linhaRes(estruturaFixa.nome("13.2"), ["13.2"], false); resLinhas.push(ca2);
+      const { linha: ca3, serie: sa3 } = linhaRes(estruturaFixa.nome("14"), ["14"], false); resLinhas.push(ca3);
+      const { linha: ca4, serie: sa4 } = linhaRes(estruturaFixa.nome("0"), ["0"], false); resLinhas.push(ca4);
+      const fcSerie = somaSeries(finSerie, sa1, sa2, sa3, sa4);
+      resLinhas.push(linhaSubtotal("Fluxo de Caixa Final", fcSerie));
+
+      resultadoConsolidado = { titulo: "Resultado Consolidado", linhas: resLinhas };
+    }
   }
 
-  const gruposTempo = agrupar(estrutura.mesesDisp, config.modo);
-  const colLabels = gruposTempo.map((g) => g.label);
-  const temTotal = gruposTempo.length > 1 && config.modo !== "anual";
-  const receitaTotal = somaTotalGrupo(estrutura, gruposTempo, "1") || 1;
-
-  // ── Resumo executivo ────────────────────────────────────────────────
-  const resumo: ResumoExecutivo = {
-    entradas: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Entradas"),
-    saidas: Math.abs(somaPeriodo(estrutura, config.mesIni, config.mesFim, "Saídas")),
-    societario: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Societário"),
-    resultado: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Resultado"),
-    saldoInicial: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Anterior (Banco)"),
-    saldoFinal: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Final (Banco)"),
-  };
-
-  // ── Blocos por categoria ─────────────────────────────────────────────
-  const vendas = construirBloco(estrutura, gruposTempo, ["1"], comparativo);
-  const custos = construirBloco(estrutura, gruposTempo, ["2"], comparativo);
-
-  const despesasCods = estrutura.gruposPrincipais.filter((g) => g.codigo >= 3 && g.codigo <= 12).map((g) => g.codigoStr);
-  const despesas = construirBloco(estrutura, gruposTempo, despesasCods, comparativo);
-
-  const socInvCods = estrutura.gruposPrincipais.filter((g) => [13, 14].includes(g.codigo)).map((g) => g.codigoStr);
-  const societarioInvestimentos = socInvCods.length ? construirBloco(estrutura, gruposTempo, socInvCods, comparativo) : null;
-
-  const transfCods = estrutura.gruposPrincipais.filter((g) => [0, 94, 95, 98, 99].includes(g.codigo)).map((g) => g.codigoStr);
-  const transferencias = transfCods.length ? construirBloco(estrutura, gruposTempo, transfCods, comparativo) : null;
-
-  // ── Resultado consolidado (DRE + fluxo de caixa) — nunca tem
-  // comparativo, igual no app original (só as tabelas por categoria acima
-  // mostram a empresa comparativa lado a lado). ───────────────────────
-  function linhaRes(rotulo: string, cods: string[], negrito: boolean): { linha: LinhaTabela; serie: number[] } {
-    const serie = gruposTempo.map((gt) => cods.reduce((s, c) => s + somaGrupo(estrutura, gt.meses, c), 0));
-    const tot = serie.reduce((a, b) => a + b, 0);
-    const pct = receitaTotal ? (Math.abs(tot) / Math.abs(receitaTotal)) * 100 : 0;
-    return { linha: { label: rotulo, negrito, indentado: false, valores: serie, total: tot, pctVendas: pct }, serie };
-  }
-  function linhaSubtotal(rotulo: string, serie: number[]): LinhaTabela {
-    const tot = serie.reduce((a, b) => a + b, 0);
-    const pct = receitaTotal ? (Math.abs(tot) / Math.abs(receitaTotal)) * 100 : 0;
-    return { label: `= ${rotulo}`, negrito: true, indentado: false, valores: serie, total: tot, pctVendas: pct };
-  }
-
-  const resLinhas: LinhaTabela[] = [];
-  const { linha: c1, serie: s1 } = linhaRes(estrutura.nome("1"), ["1"], false); resLinhas.push(c1);
-  const { linha: c2, serie: s2 } = linhaRes(estrutura.nome("2"), ["2"], false); resLinhas.push(c2);
-  const { linha: c3, serie: s3 } = linhaRes(estrutura.nome("3"), ["3"], false); resLinhas.push(c3);
-  const { linha: c4, serie: s4 } = linhaRes(estrutura.nome("4"), ["4"], false); resLinhas.push(c4);
-  const { linha: c5, serie: s5 } = linhaRes(estrutura.nome("5"), ["5"], false); resLinhas.push(c5);
-  const { linha: c6, serie: s6 } = linhaRes(estrutura.nome("6"), ["6"], false); resLinhas.push(c6);
-  const { linha: c7, serie: s7 } = linhaRes(estrutura.nome("7"), ["7"], false); resLinhas.push(c7);
-  const { linha: c8, serie: s8 } = linhaRes(estrutura.nome("8"), ["8"], false); resLinhas.push(c8);
-  const { linha: c9, serie: s9 } = linhaRes(estrutura.nome("9"), ["9"], false); resLinhas.push(c9);
-  const opSerie = somaSeries(s1, s2, s3, s4, s5, s6, s7, s8, s9);
-  resLinhas.push(linhaSubtotal("Resultado Operacional", opSerie));
-
-  const { linha: c12, serie: s12 } = linhaRes(estrutura.nome("12"), ["12"], false); resLinhas.push(c12);
-  const { linha: c10, serie: s10 } = linhaRes(estrutura.nome("10"), ["10"], false); resLinhas.push(c10);
-  const { linha: c11, serie: s11 } = linhaRes(estrutura.nome("11"), ["11"], false); resLinhas.push(c11);
-  const finSerie = somaSeries(opSerie, s12, s10, s11);
-  resLinhas.push(linhaSubtotal("Resultado Financeiro", finSerie));
-
-  const { linha: ca1, serie: sa1 } = linhaRes(estrutura.nome("13.1"), ["13.1"], false); resLinhas.push(ca1);
-  const { linha: ca2, serie: sa2 } = linhaRes(estrutura.nome("13.2"), ["13.2"], false); resLinhas.push(ca2);
-  const { linha: ca3, serie: sa3 } = linhaRes(estrutura.nome("14"), ["14"], false); resLinhas.push(ca3);
-  const { linha: ca4, serie: sa4 } = linhaRes(estrutura.nome("0"), ["0"], false); resLinhas.push(ca4);
-  const fcSerie = somaSeries(finSerie, sa1, sa2, sa3, sa4);
-  resLinhas.push(linhaSubtotal("Fluxo de Caixa Final", fcSerie));
-
-  const resultadoConsolidado: BlocoTabela = { titulo: "Resultado Consolidado", linhas: resLinhas };
-
-  const icf = config.icf ? calcularIcf({
+  const icf = necessario.icf && config.icf ? calcularIcf({
     faturamento: config.icf.faturamento, compras: config.icf.compras, servicos: config.icf.servicos,
     impostos: config.icf.impostos, folha: config.icf.folha, retiradas: config.icf.retiradas,
     amortizacao: config.icf.amortizacao, ativos: config.icf.ativos,
@@ -229,13 +272,14 @@ export function gerarRelatorio(
     responsavel: config.responsavel || "—",
     periodoStr: `${config.mesIni} a ${config.mesFim}`,
     modoLabel: MODO_LABEL[config.modo],
+    modoGeracao,
     dataEmissao,
     temComparativo: !!comparativo,
     comparativoEmpresa: comparativo ? config.compEmpresa || "Comparativo" : undefined,
     colLabels,
     colLabelsComp: comparativo ? comparativo.gruposTempo.map((g) => g.label) : undefined,
     temTotal,
-    textoIntroFixo: TEXTO_INTRO_FIXO,
+    textoIntroFixo: necessario.excel ? TEXTO_INTRO_FIXO : "",
     textoIntroCustom: config.textoIntro || "",
     textoConclusao: config.textoConclusao || "",
     resumo,

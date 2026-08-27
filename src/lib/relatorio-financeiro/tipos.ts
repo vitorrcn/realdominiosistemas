@@ -28,6 +28,14 @@ export interface EstruturaRelatorio {
 
 export type ModoVisao = "mensal" | "trimestral" | "anual";
 
+// Tipo de relatório a gerar:
+// - completo: resumo + tabelas por categoria + resultado consolidado, sem ICF (o padrão de sempre)
+// - resumo: só o Resumo Executivo, com base na planilha importada
+// - indicador: só o ICF — nem precisa de planilha, só dos 10 campos manuais
+// - resumo_indicador: Resumo Executivo + ICF, sem as tabelas por categoria
+// - tudo: completo + ICF
+export type ModoGeracao = "completo" | "resumo" | "indicador" | "resumo_indicador" | "tudo";
+
 export interface GrupoTempo {
   label: string; // "01/2026", "T1/2026" ou "2026"
   meses: string[];
@@ -42,6 +50,7 @@ export interface ConfigRelatorioFinanceiro {
   mesIni: string; // MM/AAAA
   mesFim: string; // MM/AAAA
   modo: ModoVisao;
+  modoGeracao?: ModoGeracao; // default "completo" quando ausente
   compEmpresa?: string;
   compMesIni?: string;
   compMesFim?: string;
@@ -120,6 +129,7 @@ export interface RelatorioFinanceiroSaida {
   responsavel: string;
   periodoStr: string;
   modoLabel: string;
+  modoGeracao: ModoGeracao;
   dataEmissao: string;
   temComparativo: boolean;
   comparativoEmpresa?: string;
@@ -131,14 +141,15 @@ export interface RelatorioFinanceiroSaida {
   textoIntroCustom: string;
   textoConclusao: string;
 
-  resumo: ResumoExecutivo;
+  // null quando o modo de geração não inclui essa seção
+  resumo: ResumoExecutivo | null;
 
-  vendas: BlocoTabela;
-  custos: BlocoTabela;
-  despesas: BlocoTabela;
+  vendas: BlocoTabela | null;
+  custos: BlocoTabela | null;
+  despesas: BlocoTabela | null;
   societarioInvestimentos: BlocoTabela | null;
   transferencias: BlocoTabela | null;
-  resultadoConsolidado: BlocoTabela;
+  resultadoConsolidado: BlocoTabela | null;
 
   icf: IcfResultado | null;
 }

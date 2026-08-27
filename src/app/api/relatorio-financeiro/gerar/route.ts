@@ -25,9 +25,6 @@ export async function POST(req: NextRequest) {
     const excelComparativo = formData.get("excelComparativo") as File | null;
     const configRaw = formData.get("config") as string | null;
 
-    if (!excel) {
-      return NextResponse.json({ error: "Selecione o arquivo Excel principal." }, { status: 400 });
-    }
     if (!configRaw) {
       return NextResponse.json({ error: "Configuração do relatório não enviada." }, { status: 400 });
     }
@@ -40,12 +37,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Período inválido. Use o formato MM/AAAA." }, { status: 400 });
     }
 
-    const excelBuffer = Buffer.from(await excel.arrayBuffer());
-    let linhasExcel: any[][];
-    try {
-      linhasExcel = lerExcel(excelBuffer);
-    } catch (e: any) {
-      return NextResponse.json({ error: "Não foi possível ler o Excel principal.", detalhe: e?.message }, { status: 400 });
+    // "Apenas o indicador" não depende da planilha — o ICF é calculado só
+    // com os 10 campos manuais. Todos os outros tipos de relatório usam a
+    // planilha (resumo e/ou tabelas por categoria).
+    const modoGeracao = config.modoGeracao || "completo";
+    const precisaExcel = modoGeracao !== "indicador";
+    const precisaIcf = modoGeracao === "indicador" || modoGeracao === "resumo_indicador" || modoGeracao === "tudo";
+
+    if (precisaExcel && !excel) {
+      return NextResponse.json({ error: "Selecione o arquivo Excel principal." }, { status: 400 });
+    }
+    if (precisaIcf && !config.icf) {
+      return NextResponse.json({ error: "Preencha os dados do Indicador de Compatibilidade Financeira (ICF)." }, { status: 400 });
+    }
+
+    let linhasExcel: any[][] | null = null;
+    if (excel) {
+      const excelBuffer = Buffer.from(await excel.arrayBuffer());
+      try {
+        linhasExcel = lerExcel(excelBuffer);
+      } catch (e: any) {
+        return NextResponse.json({ error: "Não foi possível ler o Excel principal.", detalhe: e?.message }, { status: 400 });
+      }
     }
 
     let linhasComparativo: any[][] | null = null;
