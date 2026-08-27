@@ -8,6 +8,7 @@
 // isso aqui a gente usa a posição (x, y) de cada palavra pra
 // reconstruir as colunas certinho, do jeito que apareceriam impressas.
 
+import "./pdfjsWorkerSetup";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.js";
 
 interface ItemTexto { texto: string; x: number; y: number }

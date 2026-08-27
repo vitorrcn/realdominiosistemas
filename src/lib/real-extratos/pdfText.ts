@@ -22,6 +22,7 @@
 //     Coordenadas X, essas sim usadas como limite absoluto de coluna em
 //     vários parsers, não sofrem esse deslocamento.
 
+import "../pdfjsWorkerSetup";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.js";
 
 export interface Word {
