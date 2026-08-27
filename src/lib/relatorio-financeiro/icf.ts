@@ -78,7 +78,18 @@ export function calcularIcf(dados: IcfEntradaDados): IcfResultado {
   const icfValor = resultadoDocumentado - aplicacoes;
   const icfPctFaturamento = faturamento !== 0 ? icfValor / faturamento : 0;
   const icfPctResultado = resultadoDocumentado !== 0 ? icfValor / resultadoDocumentado : 0;
-  const classificacao = classificar(icfPctFaturamento);
+
+  // Regra de negócio: só existe risco quando a aplicação dos recursos
+  // (retiradas + amortizações + ativos + variação de saldo) supera o
+  // resultado documentado (icfValor < 0) — ou seja, quando a empresa usou
+  // mais recursos do que o lucro documentado sustenta. Se o resultado
+  // documentado for igual ou maior que as aplicações (icfValor >= 0), não
+  // há problema nenhum, não importa o tamanho da sobra: é sempre
+  // "saudável". Só no caso de déficit a classificação usa a fórmula
+  // (Aplicações - Resultado documentado) / Faturamento.
+  const semSustentacao = Math.max(0, -icfValor); // = max(0, aplicações - resultado documentado)
+  const pctRisco = faturamento !== 0 ? semSustentacao / faturamento : 0;
+  const classificacao = icfValor >= 0 ? "saudavel" : classificar(pctRisco);
 
   return {
     faturamento, compras, servicos, impostos, folha, retiradas, amortizacao, ativos,

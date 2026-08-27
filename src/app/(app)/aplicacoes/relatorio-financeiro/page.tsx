@@ -595,16 +595,18 @@ const ICF_LABEL: Record<string, { titulo: string; cor: string }> = {
 // como regra/legenda no relatório, igual pedido pelo usuário, pra deixar
 // claro por que o resultado caiu em cada classificação.
 const ICF_FAIXAS: { classificacao: string; titulo: string; faixa: string; desc: string }[] = [
-  { classificacao: "saudavel", titulo: "Saudável", faixa: "até 3% do faturamento", desc: "Resultado compatível com a movimentação financeira do período." },
-  { classificacao: "atencao", titulo: "Atenção", faixa: "de 3% a 7% do faturamento", desc: "Pequena diferença; recomenda-se maior controle das movimentações." },
-  { classificacao: "risco", titulo: "Risco", faixa: "de 7% a 15% do faturamento", desc: "Diferença relevante, não totalmente sustentada por documentação." },
-  { classificacao: "critico", titulo: "Crítico", faixa: "acima de 15% do faturamento", desc: "Incompatibilidade significativa entre resultado e movimentação." },
+  { classificacao: "saudavel", titulo: "Saudável", faixa: "resultado documentado ≥ aplicações", desc: "O resultado documentado sustenta (ou sobra em relação a) tudo que foi retirado/investido — sem déficit, não importa o tamanho da sobra." },
+  { classificacao: "atencao", titulo: "Atenção", faixa: "déficit de 3% a 7% do faturamento", desc: "Aplicações passam o resultado documentado; pequena diferença, recomenda-se maior controle." },
+  { classificacao: "risco", titulo: "Risco", faixa: "déficit de 7% a 15% do faturamento", desc: "Aplicações passam bastante o resultado documentado; diferença não totalmente sustentada." },
+  { classificacao: "critico", titulo: "Crítico", faixa: "déficit acima de 15% do faturamento", desc: "Aplicações muito acima do resultado documentado; incompatibilidade significativa." },
 ];
 
 function IcfLegenda({ classificacaoAtual }: { classificacaoAtual: string }) {
   return (
     <div className="rounded-lg overflow-hidden border mt-3" style={{ borderColor: COR.czm }}>
-      <div className="px-3 py-1.5 text-xs font-semibold text-white" style={{ background: COR.az2 }}>Regras de classificação (% do ICF sobre o faturamento)</div>
+      <div className="px-3 py-1.5 text-xs font-semibold text-white" style={{ background: COR.az2 }}>
+        Regras de classificação — déficit = (Aplicações − Resultado Documentado) ÷ Faturamento
+      </div>
       <table className="w-full text-xs">
         <tbody>
           {ICF_FAIXAS.map((f) => {
