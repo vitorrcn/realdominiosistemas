@@ -267,6 +267,7 @@ export function gerarRelatorio(
     faturamento: config.icf.faturamento, compras: config.icf.compras, servicos: config.icf.servicos,
     impostos: config.icf.impostos, folha: config.icf.folha, retiradas: config.icf.retiradas,
     amortizacao: config.icf.amortizacao, ativos: config.icf.ativos,
+    aquisicaoEmprestimos: config.icf.aquisicaoEmprestimos,
     saldoInicial: config.icf.saldoInicial, saldoFinal: config.icf.saldoFinal,
   }) : null;
 

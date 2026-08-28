@@ -66,6 +66,7 @@ export interface IcfEntradaDados {
   retiradas: string;
   amortizacao: string;
   ativos: string;
+  aquisicaoEmprestimos: string;
   saldoInicial: string;
   saldoFinal: string;
 }
@@ -81,6 +82,7 @@ export interface IcfResultado {
   retiradas: number;
   amortizacao: number;
   ativos: number;
+  aquisicaoEmprestimos: number;
   saldoInicial: number;
   saldoFinal: number;
   resultadoDocumentado: number;

@@ -69,12 +69,13 @@ export function calcularIcf(dados: IcfEntradaDados): IcfResultado {
   const retiradas = paraFloat(dados.retiradas);
   const amortizacao = paraFloat(dados.amortizacao);
   const ativos = paraFloat(dados.ativos);
+  const aquisicaoEmprestimos = paraFloat(dados.aquisicaoEmprestimos);
   const saldoInicial = paraFloat(dados.saldoInicial);
   const saldoFinal = paraFloat(dados.saldoFinal);
 
   const resultadoDocumentado = faturamento - compras - servicos - impostos - folha;
   const variacaoSaldo = saldoFinal - saldoInicial;
-  const aplicacoes = retiradas + amortizacao + ativos + variacaoSaldo;
+  const aplicacoes = retiradas + amortizacao + ativos + aquisicaoEmprestimos + variacaoSaldo;
   const icfValor = resultadoDocumentado - aplicacoes;
   const icfPctFaturamento = faturamento !== 0 ? icfValor / faturamento : 0;
   const icfPctResultado = resultadoDocumentado !== 0 ? icfValor / resultadoDocumentado : 0;
@@ -92,7 +93,7 @@ export function calcularIcf(dados: IcfEntradaDados): IcfResultado {
   const classificacao = icfValor >= 0 ? "saudavel" : classificar(pctRisco);
 
   return {
-    faturamento, compras, servicos, impostos, folha, retiradas, amortizacao, ativos,
+    faturamento, compras, servicos, impostos, folha, retiradas, amortizacao, ativos, aquisicaoEmprestimos,
     saldoInicial, saldoFinal, resultadoDocumentado, variacaoSaldo, aplicacoes, icfValor,
     icfPctFaturamento, icfPctResultado, classificacao,
     texto: gerarTexto(classificacao),

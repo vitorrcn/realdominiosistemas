@@ -30,13 +30,14 @@ const CAMPOS_ICF: { key: keyof IcfEntradaDados; label: string }[] = [
   { key: "retiradas", label: "Retiradas de Sócios" },
   { key: "amortizacao", label: "Amortização de Empréstimos" },
   { key: "ativos", label: "Aquisição de Ativos" },
+  { key: "aquisicaoEmprestimos", label: "Aquisição de Empréstimos" },
   { key: "saldoInicial", label: "Saldo Bancário Inicial" },
   { key: "saldoFinal", label: "Saldo Bancário Final" },
 ];
 
 const ICF_VAZIO: IcfEntradaDados = {
   faturamento: "", compras: "", servicos: "", impostos: "", folha: "",
-  retiradas: "", amortizacao: "", ativos: "", saldoInicial: "", saldoFinal: "",
+  retiradas: "", amortizacao: "", ativos: "", aquisicaoEmprestimos: "", saldoInicial: "", saldoFinal: "",
 };
 
 const OPCOES_MODO_GERACAO: { valor: ModoGeracao; titulo: string; desc: string }[] = [
@@ -649,6 +650,7 @@ function IcfSection({ icf }: { icf: NonNullable<RelatorioFinanceiroSaida["icf"]>
     { label: "Retiradas de Sócios", valor: icf.retiradas },
     { label: "Amortização de Empréstimos", valor: icf.amortizacao },
     { label: "Aquisição de Ativos", valor: icf.ativos },
+    { label: "Aquisição de Empréstimos", valor: icf.aquisicaoEmprestimos },
     { label: "Variação de Saldo Bancário", valor: icf.variacaoSaldo },
     { label: "= Total de Aplicações", valor: icf.aplicacoes },
   ];
