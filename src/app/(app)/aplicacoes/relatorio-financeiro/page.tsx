@@ -377,7 +377,7 @@ function RelatorioOverlay({ relatorio, onFechar }: { relatorio: RelatorioFinance
   // impressão está aberta, sem mexer na orientação de outros relatórios.
   const paisagem = relatorio.colLabels.length > 3;
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 overflow-y-auto py-8 px-4">
+    <div className="relatorio-overlay fixed inset-0 bg-black/40 z-50 overflow-y-auto py-8 px-4">
       {paisagem && <style>{"@media print { @page { size: landscape; margin: 10mm; } }"}</style>}
       <div className="max-w-4xl mx-auto space-y-3">
         <div className="flex justify-end gap-2 print:hidden">

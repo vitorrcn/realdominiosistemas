@@ -802,7 +802,7 @@ function SlotLucroPresumido({ slot, resultado, onCalculado, onVerRelatorio }: {
 // oferece "Salvar como PDF" no próprio diálogo de impressão.
 function RelatorioOverlay({ relatorio, onFechar }: { relatorio: Relatorio; onFechar: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 overflow-y-auto py-8 px-4">
+    <div className="relatorio-overlay fixed inset-0 bg-black/40 z-50 overflow-y-auto py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-3">
         <div className="flex justify-end gap-2 print:hidden">
           <button onClick={() => window.print()} className="btn btn-primary">🖨 Imprimir / Salvar PDF</button>

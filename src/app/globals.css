@@ -168,6 +168,20 @@
     padding: 0 !important;
     border-radius: 0 !important;
   }
+  /* O overlay da tela é "position: fixed" com altura travada em 100vh e
+     "overflow-y: auto" (pra rolar dentro da tela) — na impressão isso
+     recorta o conteúdo na altura de UMA página só, então relatórios com
+     mais de uma folha saíam com só a primeira página (o resto sumia,
+     mesmo sem dar erro). Removendo o fixed/overflow aqui, o conteúdo
+     volta a fluir no documento e o navegador pagina normalmente. */
+  .relatorio-overlay {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    inset: auto !important;
+    background: none !important;
+    padding: 0 !important;
+  }
   /* Sem isso o navegador some com fundos coloridos, gradientes e cores de
      fundo de tabela na impressão/PDF (mesmo com "gráficos de segundo
      plano" desmarcado no diálogo de impressão) — o relatório impresso

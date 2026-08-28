@@ -107,13 +107,20 @@ function somaPeriodo(estrutura: EstruturaComHelpers, mesIni: string, mesFim: str
   }
   return estrutura.sumario[label] ?? 0;
 }
-function saldoPeriodo(estrutura: EstruturaComHelpers, mesIni: string, mesFim: string, label: string): number {
+// posicao "primeiro": pega o valor do primeiro mês do período (usado pro
+// "Saldo Anterior") — posicao "ultimo": pega o valor do último mês do
+// período (usado pro "Saldo Final"). Bug corrigido aqui: antes essa função
+// sempre devolvia o primeiro mês pros dois casos, então o Saldo Final do
+// Resumo Executivo saía com o saldo do início do período em vez do final.
+function saldoPeriodo(
+  estrutura: EstruturaComHelpers, mesIni: string, mesFim: string, label: string, posicao: "primeiro" | "ultimo"
+): number {
   const vals = estrutura.sumarioMensal[label];
   if (vals && Object.keys(vals).length) {
     const filtrados = Object.entries(vals)
       .filter(([m]) => mesIdx(mesIni) <= mesIdx(m) && mesIdx(m) <= mesIdx(mesFim))
       .sort((a, b) => mesIdx(a[0]) - mesIdx(b[0]));
-    if (filtrados.length) return filtrados[0][1];
+    if (filtrados.length) return posicao === "primeiro" ? filtrados[0][1] : filtrados[filtrados.length - 1][1];
   }
   return estrutura.sumario[label] ?? 0;
 }
@@ -188,8 +195,8 @@ export function gerarRelatorio(
         saidas: Math.abs(somaPeriodo(estrutura, config.mesIni, config.mesFim, "Saídas")),
         societario: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Societário"),
         resultado: somaPeriodo(estrutura, config.mesIni, config.mesFim, "Resultado"),
-        saldoInicial: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Anterior (Banco)"),
-        saldoFinal: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Final (Banco)"),
+        saldoInicial: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Anterior (Banco)", "primeiro"),
+        saldoFinal: saldoPeriodo(estrutura, config.mesIni, config.mesFim, "Saldo Final (Banco)", "ultimo"),
       };
     }
 
