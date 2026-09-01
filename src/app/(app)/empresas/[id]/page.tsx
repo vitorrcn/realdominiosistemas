@@ -1466,8 +1466,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
 
   useEffect(() => { buscar(); }, [buscar]);
 
-  async function criar(e: React.FormEvent) {
-    e.preventDefault();
+  async function criar() {
     setErro(null);
     // setorId vem de um fetch assíncrono (useEffect acima) — se a pessoa
     // conseguir clicar em "Salvar acesso" antes dele terminar de carregar,
@@ -1563,10 +1562,17 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
       )}
 
       {mostrarForm && podeEditar && (
-        <form onSubmit={criar} className="pt-2 border-t border-gray-100 space-y-2">
+        // Esse card é renderizado DENTRO do <form> grande de cada aba de
+        // setor (Fiscal/Contábil/DP/Societário) — por isso <div> em vez de
+        // <form> aqui: um <form> aninhado é HTML inválido, e o evento
+        // "submit" borbulha pro <form> de fora e dispara os dois handlers
+        // juntos (o de fora inclusive), fazendo o salvamento do acesso
+        // sumir sem aviso — mesmo bug já corrigido antes em
+        // ContasBancariasSetor e no histórico de alterações contratuais.
+        <div className="pt-2 border-t border-gray-100 space-y-2">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <input className="input text-sm" placeholder="Nome do sistema (ex: e-CAC, eSocial)"
-              value={novo.nomeSistema} onChange={(e) => setNovo((p) => ({ ...p, nomeSistema: e.target.value }))} required />
+              value={novo.nomeSistema} onChange={(e) => setNovo((p) => ({ ...p, nomeSistema: e.target.value }))} />
             <input className="input text-sm" type="url" placeholder="Link do site (ex: https://...)"
               value={novo.link} onChange={(e) => setNovo((p) => ({ ...p, link: e.target.value }))} />
             <input className="input text-sm" placeholder="Usuário / login"
@@ -1577,10 +1583,10 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
               value={novo.observacao} onChange={(e) => setNovo((p) => ({ ...p, observacao: e.target.value }))} />
           </div>
           {erro && <p className="text-xs text-red-600">{erro}</p>}
-          <button type="submit" disabled={salvando} className="btn btn-primary btn-sm">
+          <button type="button" onClick={criar} disabled={salvando} className="btn btn-primary btn-sm">
             {salvando ? "Salvando..." : "Salvar acesso"}
           </button>
-        </form>
+        </div>
       )}
     </div>
   );
