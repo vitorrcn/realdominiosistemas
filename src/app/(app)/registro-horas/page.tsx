@@ -49,6 +49,10 @@ function formatarDuracao(min: number): string {
 export default function RegistroHorasPage() {
   const { data: session } = useSession();
   const isDiretoria = (session?.user as any)?.perfilGlobal === "DIRETORIA";
+  // Supervisor de setor também vê os relatórios de horas — só do pessoal
+  // do(s) setor(es) que ele supervisiona (a API já filtra por isso).
+  const ehSupervisor = ((session?.user as any)?.setores ?? []).some((s: any) => s.papel === "supervisor");
+  const podeVerRelatorios = isDiretoria || ehSupervisor;
 
   const [data, setData] = useState(hoje());
   const [registros, setRegistros] = useState<Registro[]>([]);
@@ -165,7 +169,7 @@ export default function RegistroHorasPage() {
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-lg font-semibold text-gray-900">Registro de horas</h1>
-        {isDiretoria && (
+        {podeVerRelatorios && (
           <Link href="/registro-horas/relatorios" className="btn btn-sm">Ver relatórios</Link>
         )}
       </div>

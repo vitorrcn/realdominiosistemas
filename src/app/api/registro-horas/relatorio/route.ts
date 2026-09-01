@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, setoresQueSupervisiona } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 
@@ -15,9 +15,12 @@ function competenciaAtual(): string {
 }
 
 // GET /api/registro-horas/relatorio?de=2026-08-01&ate=2026-08-31&usuarioId=&atividadeId=&formato=json|excel
-// Somente Diretoria. Calcula, pro período informado: total de horas e
-// média por operador, e a média de tempo gasto por operador em cada
-// atividade (o que motivou o pedido — comparar quanto tempo cada um gasta
+// Diretoria vê todo mundo. Quem é supervisor de algum setor vê só o
+// pessoal vinculado ao(s) setor(es) que supervisiona (igual já acontece
+// com a carteira de empresas) — liberado a pedido, antes só Diretoria via
+// esse relatório. Calcula, pro período informado: total de horas e média
+// por operador, e a média de tempo gasto por operador em cada atividade
+// (o que motivou o pedido original — comparar quanto tempo cada um gasta
 // na mesma tarefa).
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -25,8 +28,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const user = session.user as any;
-  if (user.perfilGlobal !== "DIRETORIA")
-    return NextResponse.json({ error: "Somente a Diretoria pode ver relatórios de horas" }, { status: 403 });
+  const ehDiretoria = user.perfilGlobal === "DIRETORIA";
+  const setoresSupervisionados = setoresQueSupervisiona(user.setores ?? []);
+  if (!ehDiretoria && setoresSupervisionados.length === 0)
+    return NextResponse.json({ error: "Somente a Diretoria e supervisores de setor podem ver relatórios de horas" }, { status: 403 });
+
+  // Supervisor só enxerga o pessoal do(s) setor(es) que supervisiona.
+  let idsPermitidos: string[] | null = null;
+  if (!ehDiretoria) {
+    const vinculos = await prisma.usuarioSetor.findMany({
+      where: { setor: { nome: { in: setoresSupervisionados } } },
+      select: { usuarioId: true },
+      distinct: ["usuarioId"],
+    });
+    idsPermitidos = vinculos.map((v) => v.usuarioId);
+  }
 
   const { searchParams } = req.nextUrl;
   const [anoMes] = [competenciaAtual()];
@@ -36,10 +52,13 @@ export async function GET(req: NextRequest) {
   const atividadeId = searchParams.get("atividadeId") || undefined;
   const formato = searchParams.get("formato") || "json";
 
+  if (usuarioId && idsPermitidos && !idsPermitidos.includes(usuarioId))
+    return NextResponse.json({ error: "Esse operador não é do(s) setor(es) que você supervisiona" }, { status: 403 });
+
   const registros = await prisma.registroAtividade.findMany({
     where: {
       data: { gte: apenasData(de), lte: apenasData(ate) },
-      ...(usuarioId && { usuarioId }),
+      ...(usuarioId ? { usuarioId } : idsPermitidos ? { usuarioId: { in: idsPermitidos } } : {}),
       ...(atividadeId && { atividadeId }),
     },
     include: {

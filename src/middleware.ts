@@ -10,15 +10,19 @@ export default withAuth(
     // Obs: /api/usuarios não entra aqui — a própria API já libera uma
     // lista mínima (id + nome) para outros perfis atribuírem responsáveis,
     // e bloqueia a criação/edição completa de usuários internamente.
-    const rotasDiretoria = ["/config", "/backup", "/registro-horas/relatorios", "/relatorios/equipe"];
+    const rotasDiretoria = ["/config", "/backup", "/relatorios/equipe"];
     if (rotasDiretoria.some((r) => path.startsWith(r))) {
       if (token?.perfilGlobal !== "DIRETORIA") {
         return NextResponse.redirect(new URL("/dashboard", req.url));
       }
     }
 
-    // Comunicados é pra Diretoria + quem supervisiona algum setor
-    if (path.startsWith("/comunicados")) {
+    // Comunicados e Relatórios de horas são pra Diretoria + quem
+    // supervisiona algum setor (relatório de horas liberado pra dar
+    // visibilidade da equipe pros supervisores — antes só Diretoria via
+    // essa mesma checagem; a API já restringe cada supervisor só ao
+    // pessoal do(s) setor(es) que ele supervisiona).
+    if (path.startsWith("/comunicados") || path.startsWith("/registro-horas/relatorios")) {
       const souSupervisor = Array.isArray(token?.setores) && token.setores.some((s: any) => s.papel === "supervisor");
       if (token?.perfilGlobal !== "DIRETORIA" && !souSupervisor) {
         return NextResponse.redirect(new URL("/dashboard", req.url));

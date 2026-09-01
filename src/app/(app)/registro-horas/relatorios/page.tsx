@@ -55,14 +55,16 @@ export default function RelatorioHorasPage() {
   const [porAtividade, setPorAtividade] = useState<PorAtividade[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [operadorDestacado, setOperadorDestacado] = useState<string | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/usuarios").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
+    fetch("/api/registro-horas/operadores").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
     fetch("/api/atividades").then((r) => r.ok ? r.json() : []).then(setAtividades).catch(() => {});
   }, []);
 
   const buscar = useCallback(async () => {
     setCarregando(true);
+    setErro(null);
     const params = new URLSearchParams({ de, ate });
     if (usuarioId) params.set("usuarioId", usuarioId);
     if (atividadeId) params.set("atividadeId", atividadeId);
@@ -71,6 +73,11 @@ export default function RelatorioHorasPage() {
       const json = await res.json();
       setPorOperador(json.porOperador);
       setPorAtividade(json.porAtividade);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setErro(j.error ?? "Erro ao carregar o relatório.");
+      setPorOperador([]);
+      setPorAtividade([]);
     }
     setCarregando(false);
   }, [de, ate, usuarioId, atividadeId]);
@@ -124,6 +131,8 @@ export default function RelatorioHorasPage() {
 
       {carregando ? (
         <div className="card text-center py-10 text-gray-400">Carregando...</div>
+      ) : erro ? (
+        <div className="card text-center py-10 text-red-600 text-sm">{erro}</div>
       ) : (
         <>
           <div className="card !p-0 overflow-hidden">
