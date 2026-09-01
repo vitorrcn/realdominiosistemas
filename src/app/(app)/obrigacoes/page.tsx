@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { formatCompetencia, competenciaAtual, calcularVencimento, formatData } from "@/lib/utils";
+import { formatCompetencia, competenciaAtual, navegarCompetencia, calcularVencimento, formatData } from "@/lib/utils";
 import { STATUS_OBRIGACAO_LABEL, type ObrigacaoComContexto } from "@/types";
 import { StatusObrigacao } from "@prisma/client";
 
@@ -17,12 +17,6 @@ const STATUS_COR: Record<StatusObrigacao, string> = {
   NAO_SE_APLICA:         "badge badge-gray",
   EM_ATRASO:             "badge badge-red",
 };
-
-function navegarCompetencia(atual: string, delta: number): string {
-  const [ano, mes] = atual.split("-").map(Number);
-  const d = new Date(ano, mes - 1 + delta);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 export default function ObrigacoesPage() {
   const { data: session } = useSession();

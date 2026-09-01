@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useEmpresa } from "@/hooks/useEmpresa";
 import { BadgeEmpresa, BadgeObrigacao, BadgeEvento } from "@/components/ui/StatusBadge";
-import { formatCnpj, formatCpf, formatData, formatCompetencia, cn } from "@/lib/utils";
+import { formatCnpj, formatCpf, formatData, formatCompetencia, competenciaAtual, navegarCompetencia, cn } from "@/lib/utils";
 import { REGIME_LABEL, STATUS_EMPRESA_LABEL } from "@/types";
 import Link from "next/link";
 
@@ -1447,6 +1447,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
   const [mostrarForm, setMostrarForm] = useState(false);
   const [senhasReveladas, setSenhasReveladas] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.json()).then((lista: any[]) => {
@@ -1467,7 +1468,12 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
-    if (!setorId || !novo.nomeSistema) return;
+    setErro(null);
+    // setorId vem de um fetch assíncrono (useEffect acima) — se a pessoa
+    // conseguir clicar em "Salvar acesso" antes dele terminar de carregar,
+    // esse guard evitava o envio sem avisar nada. Agora mostra o motivo.
+    if (!setorId) return setErro("Ainda carregando o setor, tente novamente em um instante.");
+    if (!novo.nomeSistema) return setErro("Informe o nome do sistema.");
     setSalvando(true);
     const res = await fetch(`/api/empresas/${empresaId}/acessos`, {
       method: "POST",
@@ -1479,6 +1485,9 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
       setNovo({ nomeSistema: "", link: "", usuario: "", senha: "", observacao: "" });
       setMostrarForm(false);
       buscar();
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setErro(j.error ?? "Erro ao salvar o acesso.");
     }
   }
 
@@ -1507,7 +1516,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-900">Acessos do setor</h3>
         {podeEditar && (
-          <button type="button" onClick={() => setMostrarForm((v) => !v)} className="text-xs text-brand-600 hover:underline">
+          <button type="button" onClick={() => { setMostrarForm((v) => !v); setErro(null); }} className="text-xs text-brand-600 hover:underline">
             {mostrarForm ? "Cancelar" : "+ Adicionar acesso"}
           </button>
         )}
@@ -1567,6 +1576,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
             <input className="input text-sm" placeholder="Observação (ex: usa certificado digital)"
               value={novo.observacao} onChange={(e) => setNovo((p) => ({ ...p, observacao: e.target.value }))} />
           </div>
+          {erro && <p className="text-xs text-red-600">{erro}</p>}
           <button type="submit" disabled={salvando} className="btn btn-primary btn-sm">
             {salvando ? "Salvando..." : "Salvar acesso"}
           </button>
@@ -1579,6 +1589,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
 // ── Resumo de obrigações do setor para esta empresa ──────────────
 function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId: string; setorNome: string; podeEditar: boolean }) {
   const [setorId, setSetorId] = useState<string | null>(null);
+  const [competencia, setCompetencia] = useState(competenciaAtual());
   const [itens, setItens] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [mostrarConfig, setMostrarConfig] = useState(false);
@@ -1593,14 +1604,14 @@ function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId
       const setor = setoresRes.find((s: any) => s.nome === setorNome);
       if (!setor) { setCarregando(false); return; }
       setSetorId(setor.id);
-      const res = await fetch(`/api/obrigacoes?empresaId=${empresaId}&setorId=${setor.id}`);
+      const res = await fetch(`/api/obrigacoes?empresaId=${empresaId}&setorId=${setor.id}&competencia=${competencia}`);
       if (res.ok) {
         const json = await res.json();
         setItens(json.data ?? json);
       }
       setCarregando(false);
     })();
-  }, [empresaId, setorNome]);
+  }, [empresaId, setorNome, competencia]);
 
   async function abrirConfig() {
     const abrir = !mostrarConfig;
@@ -1643,12 +1654,24 @@ function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId
   return (
     <div className="card space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-900">Obrigações deste setor (mês atual)</h3>
+        <h3 className="text-sm font-semibold text-gray-900">Obrigações deste setor</h3>
         {podeEditar && (
           <button type="button" onClick={abrirConfig} className="text-xs text-brand-600 hover:underline">
             {mostrarConfig ? "Fechar" : "Configurar obrigações"}
           </button>
         )}
+      </div>
+
+      {/* Navegador de mês — antes travado só no mês atual, sem jeito de
+          conferir meses anteriores/seguintes daqui. */}
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => setCompetencia((c) => navegarCompetencia(c, -1))} className="btn-icon" title="Mês anterior">
+          ←
+        </button>
+        <div className="text-xs font-medium text-gray-700">{formatCompetencia(competencia)}</div>
+        <button type="button" onClick={() => setCompetencia((c) => navegarCompetencia(c, +1))} className="btn-icon" title="Próximo mês">
+          →
+        </button>
       </div>
 
       {mostrarConfig && (
@@ -1679,8 +1702,9 @@ function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId
         <p className="text-xs text-gray-400">Carregando...</p>
       ) : itens.length === 0 ? (
         <p className="text-xs text-gray-400">
-          Nenhuma obrigação configurada para este setor ainda. Clique em &quot;Configurar obrigações&quot; acima
-          e depois use o botão &quot;Gerar competência do mês&quot; na tela de Obrigações.
+          Nenhuma obrigação encontrada para {formatCompetencia(competencia)}. Se ainda não configurou,
+          clique em &quot;Configurar obrigações&quot; acima e depois use o botão &quot;Gerar competência do
+          mês&quot; na tela de Obrigações.
         </p>
       ) : (
         <div className="space-y-1.5">

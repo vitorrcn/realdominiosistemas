@@ -266,6 +266,23 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
   const [senhasReveladas, setSenhasReveladas] = useState<Record<string, string>>({});
   const [novo, setNovo] = useState({ empresaId: "", nomeSistema: "", link: "", usuario: "", senha: "", observacao: "" });
   const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Lista pra escolher o cliente no formulário — TODOS os clientes ativos,
+  // não só os já vinculados a alguma obrigação deste setor (empresasDisponiveis
+  // é mais restrita e serve pra outra parte da tela). Sem isso, um cliente
+  // sem obrigação configurada ainda pra este setor não aparecia na lista e
+  // o formulário não tinha como ser enviado — parecia que "não salvava".
+  const [todosClientes, setTodosClientes] = useState<{ id: string; codigoInterno: string; razaoSocial: string }[]>(empresasDisponiveis);
+  useEffect(() => {
+    fetch("/api/empresas?pageSize=500&orderBy=codigoInterno")
+      .then((r) => r.json())
+      .then((json) => {
+        const lista = (json.data ?? json ?? []).map((e: any) => ({ id: e.id, codigoInterno: e.codigoInterno, razaoSocial: e.razaoSocial }));
+        if (lista.length) setTodosClientes(lista);
+      })
+      .catch(() => {});
+  }, []);
 
   const buscar = useCallback(async () => {
     setCarregando(true);
@@ -278,7 +295,9 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
 
   async function criar(e: React.FormEvent) {
     e.preventDefault();
-    if (!novo.empresaId || !novo.nomeSistema) return;
+    setErro(null);
+    if (!novo.empresaId) return setErro("Selecione o cliente.");
+    if (!novo.nomeSistema) return setErro("Informe o nome do sistema.");
     setSalvando(true);
     const res = await fetch(`/api/empresas/${novo.empresaId}/acessos`, {
       method: "POST",
@@ -290,6 +309,9 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
       setNovo({ empresaId: "", nomeSistema: "", link: "", usuario: "", senha: "", observacao: "" });
       setMostrarForm(false);
       buscar();
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setErro(j.error ?? "Erro ao salvar o acesso.");
     }
   }
 
@@ -316,7 +338,7 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-900">Acessos dos clientes deste setor</h2>
         {podeEditar && (
-          <button onClick={() => setMostrarForm((v) => !v)} className="text-xs text-brand-600 hover:underline">
+          <button onClick={() => { setMostrarForm((v) => !v); setErro(null); }} className="text-xs text-brand-600 hover:underline">
             {mostrarForm ? "Cancelar" : "+ Adicionar acesso"}
           </button>
         )}
@@ -324,15 +346,15 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
 
       {mostrarForm && (
         <form onSubmit={criar} className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-2">
-          <select className="select text-sm" value={novo.empresaId} onChange={(e) => setNovo((p) => ({ ...p, empresaId: e.target.value }))} required>
+          <select className="select text-sm" value={novo.empresaId} onChange={(e) => setNovo((p) => ({ ...p, empresaId: e.target.value }))}>
             <option value="">Selecione o cliente...</option>
-            {empresasDisponiveis.map((e) => (
+            {todosClientes.map((e) => (
               <option key={e.id} value={e.id}>{e.codigoInterno} — {e.razaoSocial}</option>
             ))}
           </select>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <input className="input text-sm" placeholder="Nome do sistema (ex: e-CAC, eSocial)"
-              value={novo.nomeSistema} onChange={(e) => setNovo((p) => ({ ...p, nomeSistema: e.target.value }))} required />
+              value={novo.nomeSistema} onChange={(e) => setNovo((p) => ({ ...p, nomeSistema: e.target.value }))} />
             <input className="input text-sm" type="url" placeholder="Link do site (ex: https://...)"
               value={novo.link} onChange={(e) => setNovo((p) => ({ ...p, link: e.target.value }))} />
             <input className="input text-sm" placeholder="Usuário / login"
@@ -342,11 +364,7 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
             <input className="input text-sm" placeholder="Observação"
               value={novo.observacao} onChange={(e) => setNovo((p) => ({ ...p, observacao: e.target.value }))} />
           </div>
-          {empresasDisponiveis.length === 0 && (
-            <p className="text-xs text-amber-600">
-              Nenhum cliente vinculado a este setor ainda — vincule um em &quot;Obrigações deste setor&quot; primeiro.
-            </p>
-          )}
+          {erro && <p className="text-xs text-red-600">{erro}</p>}
           <button type="submit" disabled={salvando} className="btn btn-primary btn-sm">
             {salvando ? "Salvando..." : "Salvar acesso"}
           </button>

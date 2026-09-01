@@ -29,6 +29,15 @@ export function formatCompetencia(comp: string): string {
   return `${meses[Number(mes) - 1]}/${ano}`;
 }
 
+// Soma/subtrai meses de uma competência "AAAA-MM" (delta negativo volta no
+// tempo). Usado em todo navegador de mês a mês (Obrigações, e o resumo de
+// obrigações por setor dentro do cliente).
+export function navegarCompetencia(atual: string, delta: number): string {
+  const [ano, mes] = atual.split("-").map(Number);
+  const d = new Date(ano, mes - 1 + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function formatData(data: Date | string | null | undefined): string {
   if (!data) return "—";
   const d = typeof data === "string" ? new Date(data) : data;
