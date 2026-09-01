@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -44,13 +44,14 @@ export default function PlanilhaObrigacaoPage({ params }: { params: { templateId
   const [carteiraId, setCarteiraId] = useState("");
   const [carteiraTravada, setCarteiraTravada] = useState(false);
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/usuarios").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     const params2 = new URLSearchParams({ mesBase });
     if (carteiraId) params2.set("carteiraId", carteiraId);
@@ -67,6 +68,7 @@ export default function PlanilhaObrigacaoPage({ params }: { params: { templateId
       setErro(j.error ?? "Erro ao carregar planilha.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [params.templateId, mesBase, carteiraId]);
 
   useEffect(() => { buscar(); }, [buscar]);

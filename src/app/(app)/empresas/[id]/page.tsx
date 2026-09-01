@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useEmpresa } from "@/hooks/useEmpresa";
@@ -571,12 +571,14 @@ function ContasBancariasSetor({ empresaId, podeEditar }: { empresaId: string; po
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [form, setForm] = useState(vazio);
   const [salvando, setSalvando] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/empresas/${empresaId}/contas-bancarias`);
     if (res.ok) setContas(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [empresaId]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -1343,12 +1345,14 @@ function HistoricoAlteracoesContratuais({ empresaId, podeEditar }: { empresaId: 
   const [novo, setNovo] = useState({ data: hoje, descricao: "" });
   const [mostrarForm, setMostrarForm] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/empresas/${empresaId}/alteracoes-contratuais`);
     if (res.ok) setItens(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [empresaId]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -1448,6 +1452,7 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
   const [senhasReveladas, setSenhasReveladas] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.json()).then((lista: any[]) => {
@@ -1458,10 +1463,11 @@ function AcessosSetor({ empresaId, setorNome, podeEditar }: { empresaId: string;
 
   const buscar = useCallback(async () => {
     if (!setorId) return;
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/empresas/${empresaId}/acessos?setorId=${setorId}`);
     if (res.ok) setAcessos(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [empresaId, setorId]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -1602,13 +1608,14 @@ function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId
   const [templates, setTemplates] = useState<{ id: string; nome: string; vinculada: boolean }[]>([]);
   const [carregandoConfig, setCarregandoConfig] = useState(false);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     (async () => {
-      setCarregando(true);
+      if (primeiraCargaRef.current) setCarregando(true);
       const setoresRes = await fetch("/api/setores").then((r) => r.json());
       const setor = setoresRes.find((s: any) => s.nome === setorNome);
-      if (!setor) { setCarregando(false); return; }
+      if (!setor) { setCarregando(false); primeiraCargaRef.current = false; return; }
       setSetorId(setor.id);
       const res = await fetch(`/api/obrigacoes?empresaId=${empresaId}&setorId=${setor.id}&competencia=${competencia}`);
       if (res.ok) {
@@ -1616,6 +1623,7 @@ function ObrigacoesSetorResumo({ empresaId, setorNome, podeEditar }: { empresaId
         setItens(json.data ?? json);
       }
       setCarregando(false);
+      primeiraCargaRef.current = false;
     })();
   }, [empresaId, setorNome, competencia]);
 

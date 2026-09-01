@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface Ramo {
@@ -19,12 +19,14 @@ export default function RamosPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch("/api/ramos?todos=true");
     if (res.ok) setRamos(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, []);
 
   useEffect(() => { buscar(); }, [buscar]);

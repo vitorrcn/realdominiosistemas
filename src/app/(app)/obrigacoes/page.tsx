@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { formatCompetencia, competenciaAtual, navegarCompetencia, calcularVencimento, formatData } from "@/lib/utils";
 import { STATUS_OBRIGACAO_LABEL, type ObrigacaoComContexto } from "@/types";
@@ -42,8 +42,15 @@ export default function ObrigacoesPage() {
     fetch("/api/setores").then((r) => r.json()).then(setSetores).catch(() => {});
   }, []);
 
+  // Só mostra a tela toda de "Carregando..." na primeira vez — depois disso
+  // (troca de status, geração de competência etc.) o refetch acontece por
+  // baixo dos panos, sem sumir com o painel inteiro. Antes, qualquer ação
+  // (até marcar uma obrigação como concluída) recolhia a lista pra um
+  // "Carregando..." de uma linha só e a página voltava pro topo.
+  const primeiraCargaRef = useRef(true);
+
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const params = new URLSearchParams({ competencia, pageSize: "200" });
     if (setorId)        params.set("setorId", setorId);
     if (status)         params.set("status", status);
@@ -57,9 +64,33 @@ export default function ObrigacoesPage() {
       setSemObrigacaoVinculada(json.semObrigacaoVinculada ?? []);
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [competencia, setorId, status, minhaCarteira]);
 
   useEffect(() => { buscar(); }, [buscar]);
+
+  // Resumo do mês anterior (relativo ao mês que está sendo visto) — fica
+  // sempre visível, sem precisar navegar, pra não perder de vista
+  // pendências que ficaram pra trás.
+  const mesAnterior = navegarCompetencia(competencia, -1);
+  const [resumoMesAnterior, setResumoMesAnterior] = useState<{ total: number; pendente: number; emAtraso: number } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams({ competencia: mesAnterior, pageSize: "200" });
+    if (setorId)       params.set("setorId", setorId);
+    if (minhaCarteira) params.set("minhaCarteira", "true");
+    fetch(`/api/obrigacoes?${params}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (!json) return setResumoMesAnterior(null);
+        const itens: ObrigacaoComContexto[] = json.data;
+        setResumoMesAnterior({
+          total: json.total,
+          pendente: itens.filter((d) => !["CONCLUIDO", "NAO_SE_APLICA"].includes(d.status)).length,
+          emAtraso: itens.filter((d) => d.status === "EM_ATRASO").length,
+        });
+      })
+      .catch(() => setResumoMesAnterior(null));
+  }, [mesAnterior, setorId, minhaCarteira]);
 
   async function atualizarStatus(id: string, novoStatus: StatusObrigacao) {
     setSalvando(id);
@@ -142,6 +173,26 @@ export default function ObrigacoesPage() {
           className="btn btn-sm"
           onClick={() => setCompetencia((c) => navegarCompetencia(c, +1))}
         >Próximo mês →</button>
+      </div>
+
+      {/* Competência do mês anterior — sempre visível, pra não perder de
+          vista pendências que ficaram pra trás sem precisar navegar. */}
+      <div className="card flex items-center justify-between bg-gray-50/60">
+        <div className="text-sm text-gray-600">
+          <span className="text-gray-400">Mês anterior:</span>{" "}
+          <strong className="text-gray-800">{formatCompetencia(mesAnterior)}</strong>
+          {resumoMesAnterior && (
+            <span className="ml-2">
+              — {resumoMesAnterior.pendente} pendente{resumoMesAnterior.pendente === 1 ? "" : "s"}
+              {resumoMesAnterior.emAtraso > 0 && (
+                <span className="text-red-600 font-medium"> ({resumoMesAnterior.emAtraso} em atraso)</span>
+              )}
+            </span>
+          )}
+        </div>
+        <button onClick={() => setCompetencia(mesAnterior)} className="btn btn-sm flex-shrink-0">
+          Ver {formatCompetencia(mesAnterior)} →
+        </button>
       </div>
 
       {/* Resumo do mês */}

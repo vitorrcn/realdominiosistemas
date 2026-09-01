@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { BadgeTarefa } from "@/components/ui/StatusBadge";
 import { SeletorGruposEmail } from "@/components/ui/SeletorGruposEmail";
@@ -24,6 +24,7 @@ export default function TarefasPage() {
   const [somenteMinhas, setSomenteMinhas] = useState(false);
 
   const [modal, setModal] = useState<{ aberto: boolean; tarefa?: any } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.ok ? r.json() : []).then(setSetores).catch(() => {});
@@ -31,7 +32,7 @@ export default function TarefasPage() {
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     const params = new URLSearchParams();
     if (status) params.set("status", status);
@@ -45,6 +46,7 @@ export default function TarefasPage() {
       setErro(j.error ?? "Erro ao carregar tarefas.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [status, setorId, minhaCarteira, somenteMinhas]);
 
   useEffect(() => { buscar(); }, [buscar]);

@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export function useEmpresa(id: string) {
   const [empresa, setEmpresa] = useState<any>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  // Só mostra a tela toda de "Carregando empresa..." na primeira vez — os
+  // "atualizarGeral"/"atualizarModulo" chamam buscar() de novo depois de
+  // salvar, pra recarregar os dados, e sem essa checagem isso sumia com a
+  // página inteira por um instante (troca pro spinner, depois volta), o
+  // que fazia o navegador perder a posição de rolagem e voltar pro topo
+  // toda vez que algo era salvo.
+  const primeiraCargaRef = useRef(true);
 
   async function buscar() {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     try {
       const res = await fetch(`/api/empresas/${id}`);
@@ -18,6 +25,7 @@ export function useEmpresa(id: string) {
       setErro(e.message);
     } finally {
       setCarregando(false);
+      primeiraCargaRef.current = false;
     }
   }
 

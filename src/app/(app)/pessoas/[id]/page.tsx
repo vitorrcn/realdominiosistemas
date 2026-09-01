@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { formatCpf, formatData } from "@/lib/utils";
 
@@ -16,9 +16,10 @@ export default function PessoaPage({ params }: { params: { id: string } }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     try {
       const res = await fetch(`/api/pessoas/${params.id}`);
       if (!res.ok) throw new Error("Pessoa não encontrada");
@@ -27,6 +28,7 @@ export default function PessoaPage({ params }: { params: { id: string } }) {
       setErro(e.message);
     } finally {
       setCarregando(false);
+      primeiraCargaRef.current = false;
     }
   }, [params.id]);
 

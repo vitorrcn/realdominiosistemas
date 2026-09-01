@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface Atividade {
@@ -31,12 +31,14 @@ export default function AtividadesPage() {
   const [exigeClienteEdicao, setExigeClienteEdicao] = useState(false);
   const [exigeQuantidadeEdicao, setExigeQuantidadeEdicao] = useState(false);
   const [unidadeEdicao, setUnidadeEdicao] = useState("");
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch("/api/atividades?todos=true");
     if (res.ok) setAtividades(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, []);
 
   useEffect(() => { buscar(); }, [buscar]);

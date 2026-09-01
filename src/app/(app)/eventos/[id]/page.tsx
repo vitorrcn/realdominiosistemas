@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -21,9 +21,10 @@ export default function EventoDetalhePage({ params }: { params: { id: string } }
   const [msg, setMsg] = useState<string | null>(null);
 
   const [form, setForm] = useState<any>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/eventos/${params.id}`);
     if (res.ok) {
       const json = await res.json();
@@ -41,6 +42,7 @@ export default function EventoDetalhePage({ params }: { params: { id: string } }
       setErro(j.error ?? "Erro ao carregar evento.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [params.id]);
 
   useEffect(() => { buscar(); }, [buscar]);

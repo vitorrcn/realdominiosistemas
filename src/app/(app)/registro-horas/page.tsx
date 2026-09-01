@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -69,16 +69,18 @@ export default function RegistroHorasPage() {
   const [buscaEmpresa, setBuscaEmpresa] = useState("");
   const [resultadosEmpresa, setResultadosEmpresa] = useState<any[]>([]);
   const [empresaEscolhida, setEmpresaEscolhida] = useState<any>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/atividades").then((r) => r.ok ? r.json() : []).then(setAtividades).catch(() => {});
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/registro-horas?data=${data}`);
     if (res.ok) setRegistros(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [data]);
 
   useEffect(() => { buscar(); }, [buscar]);

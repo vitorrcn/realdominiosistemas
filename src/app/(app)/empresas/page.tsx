@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { formatCnpj, formatCpf, formatCompetencia, competenciaAtual } from "@/lib/utils";
 import { STATUS_EMPRESA_LABEL, REGIME_LABEL, type EmpresaResumo } from "@/types";
@@ -36,9 +36,10 @@ export default function EmpresasPage() {
     ativas: 0, emAtencao: 0, implantacao: 0, incompleto: 0, exClientes: 0,
   });
   const [erroLista, setErroLista] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErroLista(null);
     const params = new URLSearchParams();
     if (q)             params.set("q", q);
@@ -60,6 +61,7 @@ export default function EmpresasPage() {
       setErroLista(json.detalhe ? `${json.error} (${json.detalhe})` : (json.error ?? "Erro ao carregar clientes."));
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [q, status, regime, minhaCarteira, emRisco, obsCritica, page]);
 
   // Métricas globais (sem filtros)

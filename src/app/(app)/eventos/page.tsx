@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { BadgeEvento } from "@/components/ui/StatusBadge";
@@ -19,13 +19,14 @@ export default function EventosPage() {
   const [status, setStatus] = useState("");
   const [setorId, setSetorId] = useState("");
   const [minhaCarteira, setMinhaCarteira] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.ok ? r.json() : []).then(setSetores).catch(() => {});
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     const params = new URLSearchParams();
     if (status) params.set("status", status);
@@ -38,6 +39,7 @@ export default function EventosPage() {
       setErro(j.error ?? "Erro ao carregar eventos.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [status, setorId, minhaCarteira]);
 
   useEffect(() => { buscar(); }, [buscar]);

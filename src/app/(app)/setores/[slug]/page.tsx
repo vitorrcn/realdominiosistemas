@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import type { StatusEmpresa } from "@prisma/client";
@@ -44,9 +44,10 @@ export default function SetorResumoPage({ params }: { params: { slug: string } }
   const [erro, setErro] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [soComPendencia, setSoComPendencia] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   const buscarResumo = useCallback(() => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     fetch(`/api/setores/resumo?slug=${params.slug}`)
       .then(async (r) => {
         if (!r.ok) { const j = await r.json(); throw new Error(j.error ?? "Erro ao carregar"); }
@@ -54,7 +55,7 @@ export default function SetorResumoPage({ params }: { params: { slug: string } }
       })
       .then((json) => { setDados(json.dados); setCompetencia(json.competencia); })
       .catch((e) => setErro(e.message))
-      .finally(() => setCarregando(false));
+      .finally(() => { setCarregando(false); primeiraCargaRef.current = false; });
   }, [params.slug]);
 
   useEffect(() => { buscarResumo(); }, [buscarResumo]);
@@ -166,12 +167,14 @@ function ObrigacoesDoSetor({ setorId, podeGerenciar, onMudou }: { setorId: strin
   const [novoNome, setNovoNome] = useState("");
   const [criando, setCriando] = useState(false);
   const [templateAberto, setTemplateAberto] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/obrigacoes/templates?setorId=${setorId}`);
     if (res.ok) setTemplates(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [setorId]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -267,6 +270,7 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
   const [novo, setNovo] = useState({ empresaId: "", nomeSistema: "", link: "", usuario: "", senha: "", observacao: "" });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   // Lista pra escolher o cliente no formulário — TODOS os clientes ativos,
   // não só os já vinculados a alguma obrigação deste setor (empresasDisponiveis
@@ -285,10 +289,11 @@ function AcessosDoSetor({ setorId, empresasDisponiveis }: {
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/acessos?setorId=${setorId}`);
     if (res.ok) setAcessos(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [setorId]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -419,12 +424,14 @@ function GerenciarClientesTemplate({ templateId, onMudou }: { templateId: string
   const [carregando, setCarregando] = useState(true);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [vinculandoTodos, setVinculandoTodos] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/obrigacoes/templates/${templateId}/empresas?q=${encodeURIComponent(q)}`);
     if (res.ok) setClientes(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [templateId, q]);
 
   useEffect(() => {

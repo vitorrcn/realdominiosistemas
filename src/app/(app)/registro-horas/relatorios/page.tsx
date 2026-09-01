@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface PorOperador {
@@ -56,6 +56,7 @@ export default function RelatorioHorasPage() {
   const [carregando, setCarregando] = useState(true);
   const [operadorDestacado, setOperadorDestacado] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/registro-horas/operadores").then((r) => r.ok ? r.json() : []).then(setUsuarios).catch(() => {});
@@ -63,7 +64,7 @@ export default function RelatorioHorasPage() {
   }, []);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     const params = new URLSearchParams({ de, ate });
     if (usuarioId) params.set("usuarioId", usuarioId);
@@ -80,6 +81,7 @@ export default function RelatorioHorasPage() {
       setPorAtividade([]);
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [de, ate, usuarioId, atividadeId]);
 
   useEffect(() => { buscar(); }, [buscar]);

@@ -52,6 +52,7 @@ export default function AgendaPage() {
   const [carregando, setCarregando] = useState(true);
 
   const [modal, setModal] = useState<{ aberto: boolean; item?: AgendaItemDTO; dataPreenchida?: string } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
     fetch("/api/setores").then((r) => r.ok ? r.json() : []).then(setSetores).catch(() => {});
@@ -91,13 +92,14 @@ export default function AgendaPage() {
   }, [visao, ancora]);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const params = new URLSearchParams({ inicio, fim });
     if (setorFiltro) params.set("setorId", setorFiltro);
     if (usuarioFiltro) params.set("usuarioId", usuarioFiltro);
     const res = await fetch(`/api/agenda?${params}`);
     if (res.ok) setItens(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [inicio, fim, setorFiltro, usuarioFiltro]);
 
   useEffect(() => { buscar(); }, [buscar]);
@@ -313,12 +315,14 @@ function PainelLembretes() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch("/api/lembretes");
     if (res.ok) setLembretes(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, []);
 
   useEffect(() => { buscar(); }, [buscar]);

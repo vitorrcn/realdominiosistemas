@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface Setor {
@@ -20,12 +20,14 @@ export default function SetoresPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEdicao, setNomeEdicao] = useState("");
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch("/api/setores?todos=true");
     if (res.ok) setSetores(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, []);
 
   useEffect(() => { buscar(); }, [buscar]);

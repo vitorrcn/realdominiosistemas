@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { formatData, cn } from "@/lib/utils";
 
 interface EmpresaResumida {
@@ -33,9 +33,10 @@ export default function RelacoesComerciaisPage() {
   const [filtroEmpresa, setFiltroEmpresa] = useState<EmpresaResumida | null>(null);
   const [filtroRamo, setFiltroRamo] = useState("");
   const [modal, setModal] = useState<{ aberto: boolean; item?: RelacaoComercial } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     setErro(null);
     const params = new URLSearchParams();
     if (filtroEmpresa) params.set("empresaId", filtroEmpresa.id);
@@ -47,6 +48,7 @@ export default function RelacoesComerciaisPage() {
       setErro(json.error ?? "Erro ao carregar relações comerciais.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [filtroEmpresa, filtroRamo]);
 
   useEffect(() => { buscar(); }, [buscar]);

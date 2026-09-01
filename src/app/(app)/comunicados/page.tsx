@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 interface Destinatario {
   id: string;
@@ -18,12 +18,14 @@ export default function ComunicadosPage() {
   const [mensagem, setMensagem] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/comunicados/destinatarios?tipo=${tipo}&q=${encodeURIComponent(q)}`);
     if (res.ok) setLista(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [tipo, q]);
 
   useEffect(() => {

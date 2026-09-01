@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { formatCnpj, formatCpf, formatData } from "@/lib/utils";
 
@@ -21,12 +21,14 @@ export default function ClientesExcluidosPage() {
   const [q, setQ] = useState("");
   const [processando, setProcessando] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch(`/api/empresas/excluidas?q=${encodeURIComponent(q)}`);
     if (res.ok) setLista(await res.json());
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [q]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 
 interface Template {
@@ -29,9 +29,10 @@ export default function TemplatesObrigacoesPage() {
   const [novoDia, setNovoDia] = useState("");
   const [novoMesSeguinte, setNovoMesSeguinte] = useState(false);
   const [criando, setCriando] = useState(false);
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const res = await fetch("/api/obrigacoes/templates?todos=true");
     if (res.ok) setTemplates(await res.json());
     else {
@@ -39,6 +40,7 @@ export default function TemplatesObrigacoesPage() {
       setErro(j.error ?? "Erro ao carregar.");
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, []);
 
   useEffect(() => {

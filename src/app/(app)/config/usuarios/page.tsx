@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatData } from "@/lib/utils";
 
 const PERFIS: Record<string, string> = {
@@ -40,9 +40,10 @@ export default function UsuariosPage() {
   const [salvando, setSalvando]   = useState(false);
   const [msg, setMsg]             = useState<string | null>(null);
   const [form, setForm] = useState<FormUsuario>(FORM_VAZIO);
+  const primeiraCargaRef = useRef(true);
 
   async function carregar() {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const [u, s] = await Promise.all([
       fetch("/api/usuarios").then((r) => r.json()),
       fetch("/api/setores").then((r) => r.json()),
@@ -50,6 +51,7 @@ export default function UsuariosPage() {
     setUsuarios(Array.isArray(u) ? u : []);
     setSetores(Array.isArray(s) ? s : []);
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }
 
   useEffect(() => { carregar(); }, []);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { formatCpf } from "@/lib/utils";
 
@@ -21,9 +21,10 @@ export default function PessoasPage() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  const primeiraCargaRef = useRef(true);
 
   const buscar = useCallback(async () => {
-    setCarregando(true);
+    if (primeiraCargaRef.current) setCarregando(true);
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     params.set("page", String(page));
@@ -36,6 +37,7 @@ export default function PessoasPage() {
       setTotal(json.total);
     }
     setCarregando(false);
+    primeiraCargaRef.current = false;
   }, [q, page]);
 
   useEffect(() => {
