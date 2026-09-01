@@ -252,11 +252,30 @@ export function gerarRelatorio(
       const finSerie = somaSeries(opSerie, s12, s10, s11);
       resLinhas.push(linhaSubtotal("Resultado Financeiro", finSerie));
 
-      const { linha: ca1, serie: sa1 } = linhaRes(estruturaFixa.nome("13.1"), ["13.1"], false); resLinhas.push(ca1);
-      const { linha: ca2, serie: sa2 } = linhaRes(estruturaFixa.nome("13.2"), ["13.2"], false); resLinhas.push(ca2);
-      const { linha: ca3, serie: sa3 } = linhaRes(estruturaFixa.nome("14"), ["14"], false); resLinhas.push(ca3);
-      const { linha: ca4, serie: sa4 } = linhaRes(estruturaFixa.nome("0"), ["0"], false); resLinhas.push(ca4);
-      const fcSerie = somaSeries(finSerie, sa1, sa2, sa3, sa4);
+      // Antes essas linhas eram fixas nos códigos "13.1" e "13.2", então
+      // qualquer categoria nova criada dentro de Societário (ex.: um
+      // código "13.2" ou "13.3" de "Saques") sumia do Fluxo de Caixa
+      // Final mesmo aparecendo certinho na tabela de Societário e
+      // Investimentos — gerando diferença entre as duas. Agora soma pelo
+      // código do GRUPO (13, 14 — o mesmo socInvCods que a tabela acima
+      // usa), cujo valor no Excel já é a soma de todas as subcategorias
+      // que existirem ali (confirmado nessa planilha: código "13" bate
+      // exatamente com "13.1", seu único filho hoje), então uma
+      // subcategoria nova já entra sozinha, sem precisar mexer aqui de
+      // novo. O código "0" (Empréstimos e Financiamentos) continua à
+      // parte porque ele é ele mesmo já a soma dos "irmãos" 94-99 usados
+      // só pra detalhar a origem de cada empréstimo na tabela de
+      // Transferências — somar os dois contaria em dobro.
+      const seriesFluxo: number[][] = [];
+      for (const cod of socInvCods) {
+        const { linha, serie } = linhaRes(estruturaFixa.nome(cod), [cod], false);
+        resLinhas.push(linha);
+        seriesFluxo.push(serie);
+      }
+      const { linha: linhaEmprestimos, serie: serieEmprestimos } = linhaRes(estruturaFixa.nome("0"), ["0"], false);
+      resLinhas.push(linhaEmprestimos);
+      seriesFluxo.push(serieEmprestimos);
+      const fcSerie = somaSeries(finSerie, ...seriesFluxo);
       resLinhas.push(linhaSubtotal("Fluxo de Caixa Final", fcSerie));
 
       resultadoConsolidado = { titulo: "Resultado Consolidado", linhas: resLinhas };
