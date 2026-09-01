@@ -18,7 +18,7 @@ function competenciaAtual(): string {
 
 // GET /api/obrigacoes/templates/[templateId]/planilha?mesBase=2026-05
 // Devolve as empresas vinculadas a essa obrigação e o status de cada uma
-// nos 3 meses a partir de mesBase (ou do mês atual, se não informado).
+// nos 6 meses a partir de mesBase (ou do mês atual, se não informado).
 export async function GET(
   req: NextRequest,
   { params }: { params: { templateId: string } }
@@ -30,7 +30,7 @@ export async function GET(
   try {
     const user = session.user as any;
     const mesBase = req.nextUrl.searchParams.get("mesBase") || competenciaAtual();
-    const competencias = [0, 1, 2].map((i) => competenciaMaisMeses(mesBase, i));
+    const competencias = [0, 1, 2, 3, 4, 5].map((i) => competenciaMaisMeses(mesBase, i));
 
     const template = await prisma.obrigacaoTemplate.findUnique({
       where: { id: params.templateId },
