@@ -69,6 +69,7 @@ export default function RegistroHorasPage() {
   const [buscaEmpresa, setBuscaEmpresa] = useState("");
   const [resultadosEmpresa, setResultadosEmpresa] = useState<any[]>([]);
   const [empresaEscolhida, setEmpresaEscolhida] = useState<any>(null);
+  const [buscaAtividade, setBuscaAtividade] = useState("");
   const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
@@ -95,11 +96,15 @@ export default function RegistroHorasPage() {
   }, [buscaEmpresa, empresaEscolhida]);
 
   const atividadeEscolhida = atividades.find((a) => a.id === form.atividadeId);
+  const atividadesFiltradas = atividades.filter((a) =>
+    a.nome.toLowerCase().includes(buscaAtividade.trim().toLowerCase())
+  );
 
   function abrirNovo() {
     setForm({ atividadeId: "", empresaId: "", horaInicio: "", horaFim: "", quantidade: "", observacao: "" });
     setEmpresaEscolhida(null);
     setBuscaEmpresa("");
+    setBuscaAtividade("");
     setEditandoId(null);
     setErro(null);
     setMostrarForm(true);
@@ -116,6 +121,7 @@ export default function RegistroHorasPage() {
     });
     setEmpresaEscolhida(r.empresa);
     setBuscaEmpresa("");
+    setBuscaAtividade("");
     setEditandoId(r.id);
     setErro(null);
     setMostrarForm(true);
@@ -124,6 +130,10 @@ export default function RegistroHorasPage() {
   async function salvar(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
+    if (!form.atividadeId) {
+      setErro("Selecione uma atividade.");
+      return;
+    }
     if (atividadeEscolhida?.exigeCliente && !empresaEscolhida) {
       setErro(`A atividade "${atividadeEscolhida.nome}" exige informar o cliente.`);
       return;
@@ -230,13 +240,30 @@ export default function RegistroHorasPage() {
               {editandoId ? "Editar registro" : "Novo registro"} — {new Date(data + "T00:00:00").toLocaleDateString("pt-BR")}
             </h2>
 
-            <div>
+            <div className="relative">
               <label className="label">Atividade</label>
-              <select className="select" value={form.atividadeId} required
-                onChange={(e) => setForm((p) => ({ ...p, atividadeId: e.target.value }))}>
-                <option value="">Selecione...</option>
-                {atividades.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-              </select>
+              <input
+                className="input"
+                placeholder="Buscar atividade por nome..."
+                value={atividadeEscolhida ? atividadeEscolhida.nome : buscaAtividade}
+                onChange={(e) => {
+                  setBuscaAtividade(e.target.value);
+                  setForm((p) => ({ ...p, atividadeId: "" }));
+                }}
+              />
+              {buscaAtividade && !atividadeEscolhida && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {atividadesFiltradas.length > 0 ? atividadesFiltradas.map((a) => (
+                    <button key={a.id} type="button"
+                      onClick={() => { setForm((p) => ({ ...p, atividadeId: a.id })); setBuscaAtividade(""); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">
+                      {a.nome}
+                    </button>
+                  )) : (
+                    <div className="px-3 py-2 text-sm text-gray-400">Nenhuma atividade encontrada.</div>
+                  )}
+                </div>
+              )}
             </div>
 
             {atividadeEscolhida?.exigeCliente && (
