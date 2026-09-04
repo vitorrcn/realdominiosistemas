@@ -194,28 +194,43 @@ export async function parseItauMensal(buffer: Buffer): Promise<Transacao[]> {
 
 // ─── Itaú — "Lançamentos do período" ────────────────────────────────────
 export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
-  // Lista de "palavras que começam um lançamento novo" do app.py original.
-  // Ficou comprovadamente incompleta num extrato real: SAQUE (148
-  // ocorrências no arquivo de referência!), SAÍDA/ENTRADA (a forma como a
-  // maioria dos PIX aparece — "ENTRADA PIX...", "SAÍDA PIX ENVIADO..." —
-  // e não "PIX..." puro) e DEP (depósito em dinheiro/cheque) não estavam
-  // na lista. Sem elas, um lançamento que começa com uma dessas palavras
-  // e aparece logo depois de outro lançamento do mesmo dia (sem uma linha
-  // de "SALDO TOTAL" entre os dois) era silenciosamente GRUDADO no
-  // lançamento anterior — a descrição crescia, mas o valor do lançamento
-  // anterior era substituído pelo valor do novo, apagando um lançamento
-  // inteiro. Confirmado batendo a soma dos lançamentos de cada dia contra
-  // a diferença entre os saldos de "SALDO TOTAL DISPONÍVEL DIA" impressos
-  // no próprio extrato, dia a dia, ao longo de um extrato real de 20
-  // páginas — bateu exato (0 quebras) depois desse ajuste.
-  const START_KEYWORDS = new Set([
-    "COMPRA", "PIX", "RENDIMENTOS", "PAGAMENTOS", "PAGAMENTO", "BOLETO", "TED", "TAR",
-    "IOF", "JUROS", "CONS", "RSCCS", "BUSINESS", "SALDO", "RECEBIMENTO",
-    "TARIFA", "APLICACAO", "APLICAÇÃO", "RESGATE", "ESTORNO", "DEVOLUCAO",
-    "DEVOLUÇÃO", "CREDITO", "CRÉDITO", "DEBITO", "DÉBITO", "DEB",
-    "SAQUE", "ENTRADA", "SAÍDA", "SAIDA", "DEP", "DEPOSITO", "DEPÓSITO",
-    "TRANSFERENCIA", "TRANSFERÊNCIA", "DOC", "EST",
-  ]);
+  // Cada lançamento deste layout ocupa 1, 2 ou 3 linhas visuais impressas
+  // (a "Razão Social" e/ou o texto do "Lançamentos" quebram quando não
+  // cabem na largura da coluna), e a linha com Data/CNPJ/Valor nem sempre
+  // é a primeira das 3 — em muitos casos ela fica ENTRE a descrição que
+  // vem antes e a que continua depois, porque o PDF centraliza
+  // verticalmente o conteúdo de 1 linha da coluna Data em relação às 2+
+  // linhas da coluna ao lado. Ex. (coordenadas reais de um extrato):
+  //   linha 1: "RECEBIMENTO REDE MAST REDECARD INSTITUICAO DE"   (antes)
+  //   linha 2: "01/07/2026  01.425.787/0001-04  29,10"           (data/valor)
+  //   linha 3: "CD0085833339 PAGAMENTO S.A."                     (depois)
+  //
+  // A versão original deste parser tentava adivinhar onde começa um
+  // lançamento novo por uma lista de "palavras-chave de início"
+  // (PIX, BOLETO, TED, RECEBIMENTO...). Isso é frágil por natureza: toda
+  // vez que aparecia uma abreviação nova no extrato real do cliente que
+  // não estava na lista — "APL APLIC AUT MAIS" (aplicação automática),
+  // "RES APLIC AUT MAIS" (resgate), "PARCELA GIRO 11/48", "TAR PLANO
+  // ADAPT" — a linha era silenciosamente GRUDADA no lançamento anterior:
+  // a descrição crescia com texto de 2-3 lançamentos diferentes, mas só o
+  // ÚLTIMO valor lido sobrevivia (os valores dos lançamentos anteriores
+  // eram sobrescritos e desapareciam do resultado). Era questão de tempo
+  // até aparecer mais uma abreviação faltando na lista.
+  //
+  // A troca abaixo usa a ÚNICA informação que realmente separa um
+  // lançamento do próximo de forma confiável: a distância vertical entre
+  // linhas consecutivas. Medindo num extrato real (coordenadas do
+  // pdfjs), duas linhas que pertencem ao MESMO lançamento (a descrição
+  // quebrando antes/depois da linha de data) sempre ficam a ~5 ou ~10,5pt
+  // uma da outra (a distância exata depende de quantas colunas quebram
+  // juntas), enquanto a distância até a PRIMEIRA linha do PRÓXIMO
+  // lançamento é sempre ~13pt ou mais — nunca algo entre 11 e 13.
+  // Confirmado em dois extratos reais (750 e 5300+ linhas, ~3900
+  // lançamentos): 0 valores perdidos, batendo a soma dos lançamentos de
+  // cada dia contra a diferença entre os "SALDO TOTAL DISPONÍVEL DIA"
+  // impressos no próprio extrato, dia a dia.
+  const BLOCK_GAP_PT = 12; // entre o maior "mesmo lançamento" (~10,6) e o menor "lançamento novo" (~13) observados
+
   const MONEY_RE = /^-?\d{1,3}(?:\.\d{3})*,\d{2}$/;
   const DATE_RE = /^\d{2}\/\d{2}\/\d{4}$/;
   const CNPJCPF_RE = /^\d{2,3}(\.\d{3}){1,2}[/-]\d{0,4}-?\d{2}$/;
@@ -227,7 +242,7 @@ export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
   function flushOpen() {
     if (openTxn) {
       const desc = openTxn.descParts.join(" ").replace(/\s+/g, " ").trim();
-      if (desc && openTxn.value) {
+      if (desc && openTxn.value != null) {
         txns.push({ date: openTxn.date!, description: desc, value: openTxn.value, is_debit: !!openTxn.is_debit });
       }
     }
@@ -237,14 +252,19 @@ export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
   const pages = await extractPageWords(buffer);
   let inSection = false;
   for (const words of pages) {
+    let prevTop: number | null = null;
     for (const row of groupRowsByGap(words, 4)) {
       const fullText = row.map((w) => w.text).join(" ");
 
-      if (fullText.startsWith("Data Lançamentos")) { inSection = true; continue; }
+      if (fullText.startsWith("Data Lançamentos")) { inSection = true; prevTop = null; continue; }
       if (fullText.startsWith("Saldo da conta corrente") || fullText.includes("Lançamentos futuros")) {
         inSection = false; flushOpen(); continue;
       }
       if (!inSection) continue;
+
+      const top = row[0].top;
+      const linhaNova = prevTop === null || top - prevTop > BLOCK_GAP_PT;
+      prevTop = top;
 
       let dateTok: string | null = null;
       const moneyToks: [number, string][] = [];
@@ -257,15 +277,19 @@ export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
         else if (x0 >= 60) descWords.push(t);
       }
 
-      if (fullText.includes("SALDO TOTAL") || fullText.includes("SALDO ANTERIOR")) { flushOpen(); continue; }
+      // "SALDO TOTAL DISPONÍVEL DIA", "SALDO MOVIMENTAÇÃO CONTA" e "SALDO
+      // APLIC. AUT." são resumos que o Itaú imprime UMA VEZ POR DIA entre
+      // os lançamentos — nunca um lançamento de verdade (confirmado: as 3
+      // aparecem sempre juntas, uma vez por dia, ao longo do extrato
+      // inteiro). Fecha o que estava aberto e pula, sem virar linha na
+      // planilha final.
+      if (/^SALDO(\s|$)/.test(descWords[0]?.toUpperCase() ?? "")) {
+        flushOpen();
+        prevTop = null; // força a próxima linha real a abrir um lançamento novo
+        continue;
+      }
 
-      // Alguns lançamentos vêm com um código colado por hífen na primeira
-      // palavra (ex.: "RSCCS-MASTER LUZ", "RSCCS-REI DAS FEC-001032") — o
-      // extrato real usado pra validar isso tinha vários desses. Sem
-      // comparar só o pedaço antes do hífen, "RSCCS-MASTER" não batia com
-      // "RSCCS" e o lançamento colava no anterior, apagando um dos dois.
-      const firstWord = descWords[0] ? descWords[0].toUpperCase().split("-")[0] : null;
-      if (firstWord && START_KEYWORDS.has(firstWord)) {
+      if (linhaNova) {
         flushOpen();
         openTxn = { date: null, value: null, is_debit: null, descParts: [] };
       }
@@ -275,7 +299,17 @@ export async function parseItauPeriodo(buffer: Buffer): Promise<Transacao[]> {
         openTxn.descParts.push(descWords.join(" "));
       }
 
-      if (dateTok && moneyToks.length && openTxn) {
+      if (dateTok && moneyToks.length) {
+        // Segunda trava de segurança: se por algum motivo o lançamento
+        // aberto JÁ tinha um valor (ex.: threshold de linha nova não bateu
+        // num extrato com espaçamento diferente), nunca sobrescreve
+        // silenciosamente — fecha o que já tinha valor e abre um novo.
+        // É exatamente esse silêncio que apagava lançamentos antes.
+        if (openTxn && openTxn.value != null) {
+          flushOpen();
+          openTxn = { date: null, value: null, is_debit: null, descParts: [] };
+        }
+        if (!openTxn) openTxn = { date: null, value: null, is_debit: null, descParts: [] };
         moneyToks.sort((a, b) => a[0] - b[0]);
         const valStr = moneyToks[0][1];
         openTxn.date = dateTok;
