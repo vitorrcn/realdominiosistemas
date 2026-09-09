@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, setoresQueSupervisiona } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
@@ -32,17 +32,54 @@ export async function GET(req: NextRequest) {
 
   const meusSetoresIds = (user.setores ?? []).map((s: any) => s.setorId);
 
+  // Supervisor de setor (papel === "supervisor" em algum UsuarioSetor) tem
+  // a mesma visão de equipe que um Líder, mas restrita só ao(s) setor(es)
+  // que ele supervisiona — um Operador que é supervisor só do Fiscal, por
+  // exemplo, continua sem enxergar a agenda do Contábil.
+  const nomesSupervisionados = setoresQueSupervisiona(user.setores ?? []);
+  const idsSupervisionados = (user.setores ?? [])
+    .filter((s: any) => nomesSupervisionados.includes(s.nome))
+    .map((s: any) => s.setorId);
+  const souSupervisor = idsSupervisionados.length > 0;
+
   // Compromisso marcado como "privado" só aparece pra quem ele pertence
   // (usuarioId) — nem pro mordomo do setor, nem pra Diretoria. Some
   // silenciosamente da lista de qualquer outra pessoa, igual um lembrete
   // pessoal. Só entra essa restrição extra quando a pessoa logada pode
-  // enxergar compromissos de OUTRA gente (Líder/Diretoria) — o Operador já
-  // só vê os próprios itens, então nunca esconde nada dele mesmo.
+  // enxergar compromissos de OUTRA gente (supervisor/Líder/Diretoria) — o
+  // Operador comum já só vê os próprios itens, então nunca esconde nada
+  // dele mesmo.
   const escondePrivadosDeOutros: Prisma.AgendaItemWhereInput = {
     OR: [{ privado: false }, { usuarioId: user.id }],
   };
 
-  if (perfil === "OPERADOR") {
+  if (perfil === "OPERADOR" && souSupervisor) {
+    // Mesma lógica de equipe do Líder logo abaixo, só que restrita ao(s)
+    // setor(es) supervisionados em vez de todos os setores da pessoa.
+    if (usuarioId) {
+      const pertenceAoSetorSupervisionado = await prisma.usuarioSetor.findFirst({
+        where: { usuarioId, setorId: { in: idsSupervisionados } },
+      });
+      if (!pertenceAoSetorSupervisionado && usuarioId !== user.id) {
+        return NextResponse.json({ error: "Sem permissão para ver a agenda dessa pessoa" }, { status: 403 });
+      }
+      where.usuarioId = usuarioId;
+    } else if (setorId) {
+      if (!idsSupervisionados.includes(setorId)) {
+        return NextResponse.json({ error: "Sem permissão para ver esse setor" }, { status: 403 });
+      }
+      where.setorId = setorId;
+    } else {
+      const equipe = await prisma.usuarioSetor.findMany({
+        where: { setorId: { in: idsSupervisionados } },
+        select: { usuarioId: true },
+      });
+      where.OR = [
+        { setorId: { in: idsSupervisionados } },
+        { usuarioId: { in: equipe.map((u) => u.usuarioId) } },
+      ];
+    }
+  } else if (perfil === "OPERADOR") {
     // Agenda é individual — só a própria, sem exceção.
     where.usuarioId = user.id;
   } else if (perfil === "LIDER") {
@@ -76,11 +113,12 @@ export async function GET(req: NextRequest) {
     if (usuarioId) where.usuarioId = usuarioId;
   }
 
-  // Operador só enxerga os próprios itens de qualquer forma (nunca esconde
-  // nada dele mesmo); Líder e Diretoria podem ver compromissos de outra
+  // Operador comum (não-supervisor) só enxerga os próprios itens de
+  // qualquer forma (nunca esconde nada dele mesmo); supervisor, Líder e
+  // Diretoria podem ver compromissos de outra
   // gente, então entra a restrição de privacidade.
   const whereFinal: Prisma.AgendaItemWhereInput =
-    perfil === "OPERADOR" ? where : { AND: [where, escondePrivadosDeOutros] };
+    perfil === "OPERADOR" && !souSupervisor ? where : { AND: [where, escondePrivadosDeOutros] };
 
   const itens = await prisma.agendaItem.findMany({
     where: whereFinal,

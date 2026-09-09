@@ -151,6 +151,44 @@ export async function GET(req: NextRequest) {
     .map((a) => ({ ...a, operadores: a.operadores.sort((x, y) => y.totalHoras - x.totalHoras) }))
     .sort((a, b) => a.nomeAtividade.localeCompare(b.nomeAtividade));
 
+  // ── Detalhamento por pessoa e por dia, em ordem cronológica ─────────
+  // O que motivou o pedido: as tabelas acima só mostram totais agregados
+  // (quanto tempo, quantos registros) — pra realmente ver O QUE cada
+  // pessoa fez, dia a dia, é preciso o registro individual. `registros`
+  // já vem ordenado por data e depois por horaInicio (ver a query acima),
+  // então só precisa agrupar mantendo essa ordem — nunca reordenar aqui.
+  const porPessoaDiaMap = new Map<string, {
+    usuarioId: string; nome: string;
+    dias: Map<string, { atividade: string; cliente: string | null; horaInicio: string; horaFim: string; duracaoMin: number; quantidade: number | null; unidade: string | null; observacao: string | null }[]>;
+  }>();
+  for (const r of registros) {
+    if (!porPessoaDiaMap.has(r.usuarioId)) {
+      porPessoaDiaMap.set(r.usuarioId, { usuarioId: r.usuarioId, nome: r.usuario.nome, dias: new Map() });
+    }
+    const pessoa = porPessoaDiaMap.get(r.usuarioId)!;
+    const diaStr = r.data.toISOString().slice(0, 10);
+    if (!pessoa.dias.has(diaStr)) pessoa.dias.set(diaStr, []);
+    pessoa.dias.get(diaStr)!.push({
+      atividade: r.atividade.nome,
+      cliente: r.empresa ? `${r.empresa.codigoInterno} — ${r.empresa.razaoSocial}` : null,
+      horaInicio: r.horaInicio.toISOString().slice(11, 16),
+      horaFim: r.horaFim.toISOString().slice(11, 16),
+      duracaoMin: Math.round((r.horaFim.getTime() - r.horaInicio.getTime()) / 60000),
+      quantidade: r.quantidade,
+      unidade: r.atividade.unidadeQuantidade,
+      observacao: r.observacao,
+    });
+  }
+  const detalhePorPessoa = Array.from(porPessoaDiaMap.values())
+    .map((p) => ({
+      usuarioId: p.usuarioId,
+      nome: p.nome,
+      dias: Array.from(p.dias.entries())
+        .map(([data, itens]) => ({ data, itens }))
+        .sort((a, b) => a.data.localeCompare(b.data)),
+    }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+
   if (formato === "excel") {
     const wb = XLSX.utils.book_new();
 
@@ -196,5 +234,5 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ de, ate, porOperador, porOperadorAtividade, porAtividade, totalRegistros: registros.length });
+  return NextResponse.json({ de, ate, porOperador, porOperadorAtividade, porAtividade, detalhePorPessoa, totalRegistros: registros.length });
 }

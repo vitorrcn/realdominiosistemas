@@ -55,7 +55,16 @@ async function emailsPausados(): Promise<boolean> {
 // `para` aceita um endereço só ou uma lista — nesse caso todo mundo entra
 // no MESMO e-mail (um único envio com vários destinatários), em vez de
 // mandar um e-mail separado pra cada um.
-export async function enviarEmail(params: { para: string | string[]; assunto: string; texto?: string; html?: string }) {
+//
+// `semCopiaFixa`: pula a cópia (CC) fixa de Configurações > Automações
+// pra esse envio. Usado nos relatórios de horas (individual de cada
+// colaborador, e o comparativo por setor/diretoria) — são dados pessoais
+// de cada um, então precisam ir SÓ pra quem tem que ver (o próprio
+// colaborador, ou o supervisor/diretor daquele escopo específico), nunca
+// em cópia pra uma lista fixa que pode incluir qualquer outro colaborador
+// — o que juntaria o relatório de horas de uma pessoa com o de outra no
+// mesmo e-mail, exatamente o que não pode acontecer aqui.
+export async function enviarEmail(params: { para: string | string[]; assunto: string; texto?: string; html?: string; semCopiaFixa?: boolean }) {
   const paraLista = (Array.isArray(params.para) ? params.para : [params.para]).filter(Boolean);
   if (paraLista.length === 0) return;
 
@@ -69,9 +78,11 @@ export async function enviarEmail(params: { para: string | string[]; assunto: st
     console.log(`[e-mail não configurado ainda] Para: ${paraLista.join(", ")} — ${params.assunto}`);
     return;
   }
-  const cc = (await copiaFixaEmails()).filter(
-    (e) => !paraLista.some((p) => p.toLowerCase() === e.toLowerCase())
-  );
+  const cc = params.semCopiaFixa
+    ? []
+    : (await copiaFixaEmails()).filter(
+        (e) => !paraLista.some((p) => p.toLowerCase() === e.toLowerCase())
+      );
   try {
     await conf.transporter.sendMail({
       from: `"Real Domínio - Sistema" <${conf.remetente}>`,

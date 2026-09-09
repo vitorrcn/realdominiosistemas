@@ -39,7 +39,18 @@ export default function AgendaPage() {
   const { data: session } = useSession();
   const user = session?.user as any;
   const podeEditar = user && user.perfilGlobal !== "CONSULTA";
-  const vejoSoAMinha = user?.perfilGlobal === "OPERADOR";
+  // Supervisor de setor (papel === "supervisor" em algum dos vínculos) vê a
+  // agenda da equipe do(s) setor(es) que supervisiona, igual um Líder —
+  // só um Operador comum (sem supervisão de setor nenhum) fica restrito à
+  // própria agenda pessoal.
+  const souSupervisor = Array.isArray(user?.setores) && user.setores.some((s: any) => s.papel === "supervisor");
+  const vejoSoAMinha = user?.perfilGlobal === "OPERADOR" && !souSupervisor;
+  // Mesma regra que o backend usa em /api/agenda/[id]: um Operador (mesmo
+  // supervisor) só edita/marca como feito os PRÓPRIOS compromissos — a
+  // visão de equipe do supervisor é só de leitura, ele não mexe no
+  // compromisso de outra pessoa.
+  const podeEditarItem = (it: AgendaItemDTO) =>
+    podeEditar && (user?.perfilGlobal !== "OPERADOR" || it.usuario?.id === user?.id);
 
   const [visao, setVisao] = useState<"semana" | "mes">("semana");
   const [ancora, setAncora] = useState(new Date());
@@ -235,7 +246,7 @@ export default function AgendaPage() {
                       it.concluido ? "bg-green-50 text-green-700" : it.tipo === "REUNIAO" ? "bg-amber-50 text-amber-700" : it.setor ? "bg-blue-50 text-blue-700" : "bg-brand-50 text-brand-700"
                     }`}
                   >
-                    {podeEditar && (
+                    {podeEditarItem(it) && (
                       <input
                         type="checkbox"
                         className="w-3 h-3 rounded flex-shrink-0 accent-green-600 cursor-pointer"
@@ -461,6 +472,12 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, meu
   onSalvo: () => void;
 }) {
   const editando = !!item;
+  // Supervisor de setor enxerga a agenda da equipe (igual um Líder), mas
+  // só edita os PRÓPRIOS compromissos — o mesmo limite que o backend já
+  // aplica em /api/agenda/[id]. Sem isso, o formulário abria editável pra
+  // qualquer item que apareça na visão de equipe e só ia dar erro ao
+  // clicar em Salvar.
+  const somenteLeitura = editando && perfil === "OPERADOR" && item?.usuario?.id !== meuId;
   const [alvo, setAlvo] = useState<"setor" | "usuario">(item?.setor ? "setor" : "usuario");
   const [form, setForm] = useState({
     titulo: item?.titulo ?? "",
@@ -524,12 +541,19 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, meu
       <div className="card w-full max-w-md space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-900">
-            {editando ? "Editar compromisso" : "Novo compromisso"}
+            {somenteLeitura ? "Compromisso" : editando ? "Editar compromisso" : "Novo compromisso"}
           </h3>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-700">✕</button>
         </div>
 
+        {somenteLeitura && (
+          <p className="text-xs text-gray-400 -mt-2">
+            Compromisso de {item?.usuario?.nome} — você só pode editar os seus próprios.
+          </p>
+        )}
+
         <form onSubmit={salvar} className="space-y-3">
+        <fieldset disabled={somenteLeitura} className="space-y-3">
           <div>
             <label className="label">Título</label>
             <input className="input" value={form.titulo} onChange={(e) => set("titulo", e.target.value)} required />
@@ -622,6 +646,7 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, meu
               {item?.setor ? `Setor: ${item.setor.nome}` : `Colaborador: ${item?.usuario?.nome}`}
             </p>
           )}
+        </fieldset>
 
           {erro && (
             <div className="flex items-center gap-2 p-2.5 rounded-lg bg-red-50 border border-red-200">
@@ -630,16 +655,24 @@ function ModalCompromisso({ item, dataPreenchida, setores, usuarios, perfil, meu
           )}
 
           <div className="flex justify-between items-center pt-2">
-            {editando ? (
+            {somenteLeitura ? (
+              <span />
+            ) : editando ? (
               <button type="button" onClick={excluir} disabled={salvando} className="text-sm text-red-500 hover:underline">
                 Excluir
               </button>
             ) : <span />}
             <div className="flex gap-2">
-              <button type="button" onClick={onFechar} className="btn">Cancelar</button>
-              <button type="submit" disabled={salvando} className="btn btn-primary">
-                {salvando ? "Salvando..." : "Salvar"}
-              </button>
+              {somenteLeitura ? (
+                <button type="button" onClick={onFechar} className="btn">Fechar</button>
+              ) : (
+                <>
+                  <button type="button" onClick={onFechar} className="btn">Cancelar</button>
+                  <button type="submit" disabled={salvando} className="btn btn-primary">
+                    {salvando ? "Salvando..." : "Salvar"}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </form>

@@ -279,7 +279,8 @@ async function relatoriosIndividuais(de: Date, ate: Date, label: string) {
       })),
       url: `${BASE_URL}/registro-horas`,
     });
-    await enviarEmail({ para: u.email, assunto: `Suas horas - semana de ${label}`, html });
+    // Dado pessoal — sem cópia fixa. Ver comentário em enviarEmail().
+    await enviarEmail({ para: u.email, assunto: `Suas horas - semana de ${label}`, html, semCopiaFixa: true });
     enviados++;
   }
   return enviados;
@@ -312,7 +313,8 @@ async function relatorioComparativo(de: Date, ate: Date, label: string) {
     url: `${BASE_URL}/registro-horas/relatorios`,
   });
   for (const d of diretores) {
-    await enviarEmail({ para: d.email, assunto: `Comparativo de horas da equipe - semana de ${label}`, html: htmlDiretoria });
+    // Sem cópia fixa — ver comentário em enviarEmail().
+    await enviarEmail({ para: d.email, assunto: `Comparativo de horas da equipe - semana de ${label}`, html: htmlDiretoria, semCopiaFixa: true });
     enviados++;
   }
 
@@ -339,7 +341,10 @@ async function relatorioComparativo(de: Date, ate: Date, label: string) {
       url: `${BASE_URL}/registro-horas/relatorios`,
     });
     for (const s of supervisores) {
-      await enviarEmail({ para: s.usuario.email, assunto: `Comparativo de horas - ${setor.nome} - semana de ${label}`, html });
+      // Sem cópia fixa — ver comentário em enviarEmail(). Escopo desse
+      // e-mail é só o setor do supervisor; uma cópia fixa poderia incluir
+      // gente de fora e vazar as horas da equipe pra quem não devia ver.
+      await enviarEmail({ para: s.usuario.email, assunto: `Comparativo de horas - ${setor.nome} - semana de ${label}`, html, semCopiaFixa: true });
       enviados++;
     }
   }

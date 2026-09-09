@@ -27,6 +27,28 @@ interface PorAtividade {
   operadores: OperadorNaAtividade[];
 }
 
+interface ItemDoDia {
+  atividade: string;
+  cliente: string | null;
+  horaInicio: string;
+  horaFim: string;
+  duracaoMin: number;
+  quantidade: number | null;
+  unidade: string | null;
+  observacao: string | null;
+}
+
+interface DiaDaPessoa {
+  data: string;
+  itens: ItemDoDia[];
+}
+
+interface DetalhePessoa {
+  usuarioId: string;
+  nome: string;
+  dias: DiaDaPessoa[];
+}
+
 function primeiroDiaDoMes(): string {
   const h = new Date();
   return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-01`;
@@ -44,6 +66,13 @@ function formatarMin(min: number): string {
   return `${h}h${String(m).padStart(2, "0")}`;
 }
 
+function formatarDiaSemana(dataISO: string): string {
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  const d = new Date(ano, mes - 1, dia);
+  const semana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+  return `${String(dia).padStart(2, "0")}/${String(mes).padStart(2, "0")} (${semana})`;
+}
+
 export default function RelatorioHorasPage() {
   const [de, setDe] = useState(primeiroDiaDoMes());
   const [ate, setAte] = useState(hoje());
@@ -53,8 +82,10 @@ export default function RelatorioHorasPage() {
   const [atividades, setAtividades] = useState<{ id: string; nome: string }[]>([]);
   const [porOperador, setPorOperador] = useState<PorOperador[]>([]);
   const [porAtividade, setPorAtividade] = useState<PorAtividade[]>([]);
+  const [detalhePorPessoa, setDetalhePorPessoa] = useState<DetalhePessoa[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [operadorDestacado, setOperadorDestacado] = useState<string | null>(null);
+  const [pessoaExpandida, setPessoaExpandida] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const primeiraCargaRef = useRef(true);
 
@@ -74,11 +105,16 @@ export default function RelatorioHorasPage() {
       const json = await res.json();
       setPorOperador(json.porOperador);
       setPorAtividade(json.porAtividade);
+      setDetalhePorPessoa(json.detalhePorPessoa ?? []);
+      // Filtrando por uma pessoa só, já abre o detalhamento dela direto
+      // — não faz sentido pedir mais um clique quando só tem uma opção.
+      setPessoaExpandida(usuarioId || null);
     } else {
       const j = await res.json().catch(() => ({}));
       setErro(j.error ?? "Erro ao carregar o relatório.");
       setPorOperador([]);
       setPorAtividade([]);
+      setDetalhePorPessoa([]);
     }
     setCarregando(false);
     primeiraCargaRef.current = false;
@@ -220,6 +256,67 @@ export default function RelatorioHorasPage() {
                           );
                         })}
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="card !p-0 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+              <h3 className="text-xs font-semibold text-gray-600 uppercase">Detalhamento por pessoa e dia</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                O que cada um fez, dia a dia, em ordem cronológica. Clique no nome pra abrir.
+              </p>
+            </div>
+            {detalhePorPessoa.length === 0 ? (
+              <p className="text-center py-8 text-gray-400 text-sm">Nenhum registro no período.</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {detalhePorPessoa.map((p) => {
+                  const aberto = pessoaExpandida === p.usuarioId;
+                  const totalItens = p.dias.reduce((s, d) => s + d.itens.length, 0);
+                  return (
+                    <div key={p.usuarioId}>
+                      <button
+                        type="button"
+                        onClick={() => setPessoaExpandida(aberto ? null : p.usuarioId)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-50"
+                      >
+                        <span className="text-sm font-medium text-gray-900">{p.nome}</span>
+                        <span className="text-xs text-gray-400 flex-shrink-0">
+                          {p.dias.length} dia{p.dias.length !== 1 ? "s" : ""} · {totalItens} registro{totalItens !== 1 ? "s" : ""}
+                          <span className="ml-2">{aberto ? "▲" : "▼"}</span>
+                        </span>
+                      </button>
+                      {aberto && (
+                        <div className="px-4 pb-3 space-y-3">
+                          {p.dias.map((d) => (
+                            <div key={d.data}>
+                              <div className="text-xs font-semibold text-gray-600 mb-1">{formatarDiaSemana(d.data)}</div>
+                              <div className="space-y-1">
+                                {d.itens.map((it, i) => (
+                                  <div key={i} className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-2.5 py-1.5">
+                                    <span className="font-mono text-gray-400 flex-shrink-0 w-24">
+                                      {it.horaInicio}–{it.horaFim}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-gray-800">{it.atividade}</span>
+                                      {it.cliente && <span className="text-gray-400"> — {it.cliente}</span>}
+                                      {it.quantidade != null && (
+                                        <span className="text-gray-400"> · {it.quantidade} {it.unidade || "un."}</span>
+                                      )}
+                                      {it.observacao && <div className="text-gray-400 italic">{it.observacao}</div>}
+                                    </div>
+                                    <span className="text-gray-400 flex-shrink-0">{formatarMin(it.duracaoMin)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
