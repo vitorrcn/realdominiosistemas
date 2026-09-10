@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useLayoutEffect } from "react";
 import type { ReactNode } from "react";
 
 // Convenção de formatação leve: **negrito** e *itálico*, guardados como
@@ -51,6 +51,17 @@ export function CampoTextoFormatado({
   // Abre já em prévia quando já existe texto salvo (nada pra ver na
   // prévia se estiver vazio, aí faz mais sentido abrir direto editando).
   const [previa, setPrevia] = useState(() => !!value);
+
+  // Cresce junto com o texto em vez de ficar numa altura fixa com
+  // rolagem interna — sem isso, digitar um texto mais longo empurrava
+  // o conteúdo pra dentro de uma "janelinha" pequena, dando a sensação
+  // de que a caixa estava encolhendo/quebrando enquanto escrevia.
+  useLayoutEffect(() => {
+    const ta = ref.current;
+    if (!ta || previa) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.max(ta.scrollHeight, minHeightPx)}px`;
+  }, [value, previa, minHeightPx]);
 
   function aplicar(marcador: string, textoPadrao: string) {
     const ta = ref.current;
@@ -111,7 +122,7 @@ export function CampoTextoFormatado({
       ) : (
         <textarea
           ref={ref}
-          className="input"
+          className="input resize-none overflow-hidden"
           style={{ minHeight: minHeightPx }}
           placeholder={placeholder}
           value={value}
