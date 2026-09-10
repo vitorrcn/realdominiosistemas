@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 
 interface PorOperador {
@@ -74,6 +75,9 @@ function formatarDiaSemana(dataISO: string): string {
 }
 
 export default function RelatorioHorasPage() {
+  const { data: session } = useSession();
+  const ehDiretoria = (session?.user as any)?.perfilGlobal === "DIRETORIA";
+
   const [de, setDe] = useState(primeiroDiaDoMes());
   const [ate, setAte] = useState(hoje());
   const [usuarioId, setUsuarioId] = useState("");
@@ -87,6 +91,8 @@ export default function RelatorioHorasPage() {
   const [operadorDestacado, setOperadorDestacado] = useState<string | null>(null);
   const [pessoaExpandida, setPessoaExpandida] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [resultadoEnvio, setResultadoEnvio] = useState<string | null>(null);
   const primeiraCargaRef = useRef(true);
 
   useEffect(() => {
@@ -129,6 +135,29 @@ export default function RelatorioHorasPage() {
     window.location.href = `/api/registro-horas/relatorio?${params}`;
   }
 
+  // Dispara na hora, pro período selecionado nos filtros "De"/"Até"
+  // acima (ignora os filtros de operador/atividade — o envio é sempre
+  // completo: relatório individual pra cada pessoa, comparativo pra
+  // Diretoria e supervisores). Mesmo envio que o cron semanal faz
+  // sozinho — só que na hora que quiser, não só no dia configurado.
+  async function enviarPorEmail() {
+    if (!confirm(`Enviar os relatórios de horas de ${de.split("-").reverse().join("/")} a ${ate.split("-").reverse().join("/")} por e-mail agora?\n\nVai pra cada colaborador com registro no período (o próprio, individual) e pra Diretoria + supervisores de cada setor (comparativo da equipe).`)) return;
+    setEnviando(true);
+    setResultadoEnvio(null);
+    const res = await fetch("/api/registro-horas/relatorio/enviar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ de, ate }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setEnviando(false);
+    if (res.ok) {
+      setResultadoEnvio(`Enviado! ${json.individuais} e-mail(s) individual(is) e ${json.comparativo} comparativo(s).`);
+    } else {
+      setResultadoEnvio(`Erro: ${json.error ?? "não foi possível enviar."}`);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -139,8 +168,21 @@ export default function RelatorioHorasPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-lg font-semibold text-gray-900">Relatórios de horas</h1>
-        <button onClick={exportarExcel} className="btn btn-primary btn-sm">Exportar Excel</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {ehDiretoria && (
+            <button onClick={enviarPorEmail} disabled={enviando} className="btn btn-sm">
+              {enviando ? "Enviando..." : "Enviar por e-mail agora"}
+            </button>
+          )}
+          <button onClick={exportarExcel} className="btn btn-primary btn-sm">Exportar Excel</button>
+        </div>
       </div>
+
+      {resultadoEnvio && (
+        <div className={`text-sm px-3 py-2 rounded-lg border ${resultadoEnvio.startsWith("Erro") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+          {resultadoEnvio}
+        </div>
+      )}
 
       <div className="card flex flex-wrap items-end gap-3">
         <div>

@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useEmpresa } from "@/hooks/useEmpresa";
 import { BadgeEmpresa, BadgeObrigacao, BadgeEvento } from "@/components/ui/StatusBadge";
+import { CampoTextoFormatado } from "@/components/ui/CampoTextoFormatado";
 import { formatCnpj, formatCpf, formatData, formatCompetencia, competenciaAtual, navegarCompetencia, cn } from "@/lib/utils";
 import { REGIME_LABEL, STATUS_EMPRESA_LABEL } from "@/types";
 import Link from "next/link";
@@ -456,7 +457,7 @@ function AbaFiscal({ empresa, salvar, salvando, podeEditar }: any) {
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Observações</h3>
-        <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
+        <CampoTextoFormatado value={form.observacoes ?? ""} onChange={(v) => set("observacoes", v)} />
       </div>
 
       </fieldset>
@@ -532,7 +533,7 @@ function AbaContabil({ empresa, salvar, salvando, podeEditar }: any) {
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Estrutura bancária</h3>
         <div>
           <label className="label">Observações Gerais</label>
-          <textarea className="input min-h-[80px]" value={form.obsExtratos ?? ""} onChange={(e) => set("obsExtratos", e.target.value)} />
+          <CampoTextoFormatado value={form.obsExtratos ?? ""} onChange={(v) => set("obsExtratos", v)} />
         </div>
         <div className="flex gap-6 mt-4">
           <label className="flex items-center gap-2 cursor-pointer">
@@ -785,7 +786,7 @@ function AbaDp({ empresa, salvar, salvando, podeEditar }: any) {
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Observações</h3>
-        <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
+        <CampoTextoFormatado value={form.observacoes ?? ""} onChange={(v) => set("observacoes", v)} />
       </div>
 
       </fieldset>
@@ -897,7 +898,7 @@ function AbaSocietario({ empresa, salvar, salvando, podeEditar, atualizarEmpresa
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Observações</h3>
-        <textarea className="input min-h-[80px]" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
+        <CampoTextoFormatado value={form.observacoes ?? ""} onChange={(v) => set("observacoes", v)} />
       </div>
 
       </fieldset>

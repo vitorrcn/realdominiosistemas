@@ -3,13 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { calcularVencimento, formatData } from "@/lib/utils";
 import { SETOR_RESP_FIELD } from "@/lib/auth";
 import { STATUS_EMPRESA_GERA_OBRIGACAO } from "@/lib/obrigacoes";
-import {
-  enviarEmail,
-  emailDigestObrigacoesSetorHtml,
-  emailAlertaCarteiraSemResponsavelHtml,
-  emailRelatorioHorasIndividualHtml,
-  emailRelatorioHorasComparativoHtml,
-} from "@/lib/mail";
+import { enviarEmail, emailDigestObrigacoesSetorHtml, emailAlertaCarteiraSemResponsavelHtml } from "@/lib/mail";
+import { relatoriosIndividuais, relatorioComparativo } from "@/lib/relatorioHorasEmail";
 
 // GET/POST /api/cron/diario — chamado uma vez por dia pelo Vercel Cron.
 // Se "pausadoGeral" estiver ligado em Configurações > Automações, não
@@ -215,141 +210,6 @@ function semanaAnterior(): { de: Date; ate: Date; label: string } {
     ate: domingoAnterior,
     label: `${formatData(segundaAnterior)} a ${formatData(domingoAnterior)}`,
   };
-}
-
-function formatarHoras(minutos: number): string {
-  const h = Math.floor(minutos / 60);
-  const m = Math.round(minutos % 60);
-  if (h === 0) return `${m}min`;
-  if (m === 0) return `${h}h`;
-  return `${h}h${String(m).padStart(2, "0")}`;
-}
-
-async function buscarRegistrosSemana(de: Date, ate: Date) {
-  return prisma.registroAtividade.findMany({
-    where: { data: { gte: de, lte: ate } },
-    select: {
-      usuarioId: true,
-      quantidade: true,
-      horaInicio: true,
-      horaFim: true,
-      usuario: { select: { id: true, nome: true } },
-      atividade: { select: { nome: true, unidadeQuantidade: true } },
-    },
-  });
-}
-
-async function relatoriosIndividuais(de: Date, ate: Date, label: string) {
-  const registros = await buscarRegistrosSemana(de, ate);
-  if (registros.length === 0) return 0;
-
-  const porUsuario = new Map<string, { nome: string; totalMin: number; qtd: number; porAtividade: Map<string, { totalMin: number; totalQtd: number | null; unidade: string | null }> }>();
-  for (const r of registros) {
-    if (!porUsuario.has(r.usuarioId)) {
-      porUsuario.set(r.usuarioId, { nome: r.usuario.nome, totalMin: 0, qtd: 0, porAtividade: new Map() });
-    }
-    const u = porUsuario.get(r.usuarioId)!;
-    const min = (r.horaFim.getTime() - r.horaInicio.getTime()) / 60000;
-    u.totalMin += min;
-    u.qtd += 1;
-
-    if (!u.porAtividade.has(r.atividade.nome)) {
-      u.porAtividade.set(r.atividade.nome, { totalMin: 0, totalQtd: r.quantidade != null ? 0 : null, unidade: r.atividade.unidadeQuantidade });
-    }
-    const a = u.porAtividade.get(r.atividade.nome)!;
-    a.totalMin += min;
-    if (r.quantidade != null) a.totalQtd = (a.totalQtd ?? 0) + r.quantidade;
-  }
-
-  const usuarios = await prisma.usuario.findMany({
-    where: { id: { in: Array.from(porUsuario.keys()) }, ativo: true },
-    select: { id: true, email: true },
-  });
-
-  let enviados = 0;
-  for (const u of usuarios) {
-    const dados = porUsuario.get(u.id)!;
-    const html = emailRelatorioHorasIndividualHtml({
-      nome: dados.nome,
-      periodo: label,
-      totalHoras: formatarHoras(dados.totalMin),
-      qtdRegistros: dados.qtd,
-      porAtividade: Array.from(dados.porAtividade.entries()).map(([nome, a]) => ({
-        nome, totalHoras: formatarHoras(a.totalMin), totalQuantidade: a.totalQtd, unidade: a.unidade,
-      })),
-      url: `${BASE_URL}/registro-horas`,
-    });
-    // Dado pessoal — sem cópia fixa. Ver comentário em enviarEmail().
-    await enviarEmail({ para: u.email, assunto: `Suas horas - semana de ${label}`, html, semCopiaFixa: true });
-    enviados++;
-  }
-  return enviados;
-}
-
-async function relatorioComparativo(de: Date, ate: Date, label: string) {
-  const registros = await buscarRegistrosSemana(de, ate);
-  if (registros.length === 0) return 0;
-
-  const minPorUsuario = new Map<string, { nome: string; totalMin: number }>();
-  for (const r of registros) {
-    if (!minPorUsuario.has(r.usuarioId)) minPorUsuario.set(r.usuarioId, { nome: r.usuario.nome, totalMin: 0 });
-    minPorUsuario.get(r.usuarioId)!.totalMin += (r.horaFim.getTime() - r.horaInicio.getTime()) / 60000;
-  }
-
-  function montarLista(usuarioIds?: string[]) {
-    const entradas = Array.from(minPorUsuario.entries()).filter(([id]) => !usuarioIds || usuarioIds.includes(id));
-    return entradas
-      .map(([, v]) => ({ nome: v.nome, totalHoras: (v.totalMin / 60).toFixed(1) }))
-      .sort((a, b) => parseFloat(b.totalHoras) - parseFloat(a.totalHoras));
-  }
-
-  let enviados = 0;
-
-  const diretores = await prisma.usuario.findMany({ where: { perfilGlobal: "DIRETORIA", ativo: true }, select: { id: true, email: true } });
-  const htmlDiretoria = emailRelatorioHorasComparativoHtml({
-    escopo: "Comparativo de todos os operadores.",
-    periodo: label,
-    porOperador: montarLista(),
-    url: `${BASE_URL}/registro-horas/relatorios`,
-  });
-  for (const d of diretores) {
-    // Sem cópia fixa — ver comentário em enviarEmail().
-    await enviarEmail({ para: d.email, assunto: `Comparativo de horas da equipe - semana de ${label}`, html: htmlDiretoria, semCopiaFixa: true });
-    enviados++;
-  }
-
-  const setores = await prisma.setor.findMany({ select: { id: true, nome: true } });
-  for (const setor of setores) {
-    const supervisores = await prisma.usuarioSetor.findMany({
-      where: { setorId: setor.id, papel: "supervisor", usuario: { ativo: true } },
-      select: { usuario: { select: { id: true, nome: true, email: true } } },
-    });
-    if (supervisores.length === 0) continue;
-
-    const membrosDoSetor = await prisma.usuarioSetor.findMany({
-      where: { setorId: setor.id },
-      select: { usuarioId: true },
-    });
-    const idsEquipe = membrosDoSetor.map((m) => m.usuarioId);
-    const listaEquipe = montarLista(idsEquipe);
-    if (listaEquipe.length === 0) continue;
-
-    const html = emailRelatorioHorasComparativoHtml({
-      escopo: `Comparativo dos operadores do setor ${setor.nome}.`,
-      periodo: label,
-      porOperador: listaEquipe,
-      url: `${BASE_URL}/registro-horas/relatorios`,
-    });
-    for (const s of supervisores) {
-      // Sem cópia fixa — ver comentário em enviarEmail(). Escopo desse
-      // e-mail é só o setor do supervisor; uma cópia fixa poderia incluir
-      // gente de fora e vazar as horas da equipe pra quem não devia ver.
-      await enviarEmail({ para: s.usuario.email, assunto: `Comparativo de horas - ${setor.nome} - semana de ${label}`, html, semCopiaFixa: true });
-      enviados++;
-    }
-  }
-
-  return enviados;
 }
 
 async function handler(req: NextRequest) {
