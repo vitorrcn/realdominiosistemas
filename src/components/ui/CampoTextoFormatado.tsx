@@ -48,7 +48,9 @@ export function CampoTextoFormatado({
   disabled?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [previa, setPrevia] = useState(false);
+  // Abre já em prévia quando já existe texto salvo (nada pra ver na
+  // prévia se estiver vazio, aí faz mais sentido abrir direto editando).
+  const [previa, setPrevia] = useState(() => !!value);
 
   function aplicar(marcador: string, textoPadrao: string) {
     const ta = ref.current;
