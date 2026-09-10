@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 // Convenção de formatação leve: **negrito** e *itálico*, guardados como
@@ -31,9 +31,9 @@ export function renderTextoFormatado(texto: string): ReactNode[] {
 }
 
 // Textarea com botões de Negrito/Itálico (envolvem a seleção com **/*,
-// igual um editor de texto simples) e uma prévia formatada logo abaixo —
-// sem a prévia, os marcadores ficariam "escondidos" na tela de edição,
-// já que <textarea> nunca renderiza formatação sozinho.
+// igual um editor de texto simples) e um botão pra alternar entre editar
+// (vê os marcadores) e prévia (vê o resultado formatado) — só um dos
+// dois fica visível por vez, nunca os dois juntos.
 export function CampoTextoFormatado({
   value,
   onChange,
@@ -48,6 +48,7 @@ export function CampoTextoFormatado({
   disabled?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const [previa, setPrevia] = useState(false);
 
   function aplicar(marcador: string, textoPadrao: string) {
     const ta = ref.current;
@@ -69,40 +70,52 @@ export function CampoTextoFormatado({
 
   return (
     <div className="space-y-1.5">
-      <div className="flex gap-1">
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex gap-1">
+          <button
+            type="button"
+            disabled={disabled || previa}
+            onClick={() => aplicar("**", "negrito")}
+            className="w-7 h-7 rounded border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Negrito"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            disabled={disabled || previa}
+            onClick={() => aplicar("*", "itálico")}
+            className="w-7 h-7 rounded border border-gray-200 text-xs italic text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Itálico"
+          >
+            I
+          </button>
+        </div>
         <button
           type="button"
-          disabled={disabled}
-          onClick={() => aplicar("**", "negrito")}
-          className="w-7 h-7 rounded border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Negrito"
+          onClick={() => setPrevia((p) => !p)}
+          className="text-xs text-brand-600 hover:underline px-1"
         >
-          B
-        </button>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => aplicar("*", "itálico")}
-          className="w-7 h-7 rounded border border-gray-200 text-xs italic text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Itálico"
-        >
-          I
+          {previa ? "✏️ Editar" : "👁 Ver prévia"}
         </button>
       </div>
-      <textarea
-        ref={ref}
-        className="input"
-        style={{ minHeight: minHeightPx }}
-        placeholder={placeholder}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {value && (
-        <div className="text-xs text-gray-500 whitespace-pre-wrap border border-gray-100 rounded-md bg-gray-50 px-2.5 py-2">
-          <span className="text-[10px] text-gray-400 block mb-1 uppercase tracking-wide">Prévia</span>
-          {renderTextoFormatado(value)}
+      {previa ? (
+        <div
+          className="text-sm text-gray-700 whitespace-pre-wrap border border-gray-200 rounded-lg bg-gray-50 px-3 py-2"
+          style={{ minHeight: minHeightPx }}
+        >
+          {value ? renderTextoFormatado(value) : <span className="text-gray-400">(vazio)</span>}
         </div>
+      ) : (
+        <textarea
+          ref={ref}
+          className="input"
+          style={{ minHeight: minHeightPx }}
+          placeholder={placeholder}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+        />
       )}
     </div>
   );
