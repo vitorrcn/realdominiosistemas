@@ -205,9 +205,8 @@ function ModalMarcarEntrega({ linha, competencia, salvando, onFechar, onSalvar }
   onSalvar: (data: string | null) => void;
 }) {
   const celAtual = linha.celulas[competencia];
-  const [data, setData] = useState(
-    celAtual?.dataConclusao ? celAtual.dataConclusao.slice(0, 10) : new Date().toISOString().slice(0, 10)
-  );
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const [data, setData] = useState(celAtual?.dataConclusao ? celAtual.dataConclusao.slice(0, 10) : hojeStr);
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={onFechar}>
@@ -222,7 +221,8 @@ function ModalMarcarEntrega({ linha, competencia, salvando, onFechar, onSalvar }
 
         <div>
           <label className="label">Data da entrega</label>
-          <input className="input" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+          <input className="input" type="date" value={data} min={hojeStr} onChange={(e) => setData(e.target.value)} />
+          <p className="text-xs text-gray-400 mt-1">Não é possível marcar entrega com data anterior a hoje.</p>
         </div>
 
         <div className="flex justify-between items-center pt-1">

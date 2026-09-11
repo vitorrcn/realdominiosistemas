@@ -71,25 +71,46 @@ export async function GET(req: NextRequest) {
 
   // ── Agregação por operador ────────────────────────────────────────
   const porOperadorMap = new Map<string, {
-    usuarioId: string; nome: string; totalMinutos: number; qtdRegistros: number; dias: Set<string>;
+    usuarioId: string; nome: string; totalMinutos: number; qtdRegistros: number; dias: Set<string>; totalGapMin: number;
   }>();
+  // Último horário de término visto, por pessoa+dia — usado abaixo pra
+  // calcular o intervalo (tempo parado) até o próximo registro da MESMA
+  // pessoa no MESMO dia. `registros` vem ordenado por data+horaInicio
+  // globalmente (todo mundo junto), não por pessoa, então não dá pra usar
+  // "o item anterior da lista" direto — só rastreando por pessoa+dia.
+  const ultimoFimPorPessoaDia = new Map<string, Date>();
   // ── Agregação por operador + atividade ──────────────────────────────
   const porOperadorAtividadeMap = new Map<string, {
     usuarioId: string; nomeUsuario: string; atividadeId: string; nomeAtividade: string; unidadeQuantidade: string | null;
     totalMinutos: number; qtdRegistros: number; totalQuantidade: number | null;
+  }>();
+  // ── Detalhamento por pessoa e por dia, em ordem cronológica ─────────
+  const porPessoaDiaMap = new Map<string, {
+    usuarioId: string; nome: string;
+    dias: Map<string, { atividade: string; cliente: string | null; horaInicio: string; horaFim: string; duracaoMin: number; quantidade: number | null; unidade: string | null; observacao: string | null; gapAntesMin: number | null }[]>;
   }>();
 
   for (const r of registros) {
     const minutos = (r.horaFim.getTime() - r.horaInicio.getTime()) / 60000;
     const diaStr = r.data.toISOString().slice(0, 10);
 
+    // Intervalo parado desde o fim do registro anterior dessa mesma
+    // pessoa nesse mesmo dia — ignora sobreposição/hora regressiva (não
+    // vira "intervalo negativo", só não conta).
+    const chavePessoaDia = `${r.usuarioId}::${diaStr}`;
+    const ultimoFim = ultimoFimPorPessoaDia.get(chavePessoaDia);
+    const gapAntesMin = ultimoFim ? Math.round((r.horaInicio.getTime() - ultimoFim.getTime()) / 60000) : null;
+    const gapValido = gapAntesMin != null && gapAntesMin > 0 ? gapAntesMin : null;
+    ultimoFimPorPessoaDia.set(chavePessoaDia, r.horaFim);
+
     if (!porOperadorMap.has(r.usuarioId)) {
-      porOperadorMap.set(r.usuarioId, { usuarioId: r.usuarioId, nome: r.usuario.nome, totalMinutos: 0, qtdRegistros: 0, dias: new Set() });
+      porOperadorMap.set(r.usuarioId, { usuarioId: r.usuarioId, nome: r.usuario.nome, totalMinutos: 0, qtdRegistros: 0, dias: new Set(), totalGapMin: 0 });
     }
     const op = porOperadorMap.get(r.usuarioId)!;
     op.totalMinutos += minutos;
     op.qtdRegistros += 1;
     op.dias.add(diaStr);
+    if (gapValido) op.totalGapMin += gapValido;
 
     const chaveOA = `${r.usuarioId}::${r.atividadeId}`;
     if (!porOperadorAtividadeMap.has(chaveOA)) {
@@ -103,6 +124,23 @@ export async function GET(req: NextRequest) {
     oa.totalMinutos += minutos;
     oa.qtdRegistros += 1;
     if (r.quantidade != null) oa.totalQuantidade = (oa.totalQuantidade ?? 0) + r.quantidade;
+
+    if (!porPessoaDiaMap.has(r.usuarioId)) {
+      porPessoaDiaMap.set(r.usuarioId, { usuarioId: r.usuarioId, nome: r.usuario.nome, dias: new Map() });
+    }
+    const pessoa = porPessoaDiaMap.get(r.usuarioId)!;
+    if (!pessoa.dias.has(diaStr)) pessoa.dias.set(diaStr, []);
+    pessoa.dias.get(diaStr)!.push({
+      atividade: r.atividade.nome,
+      cliente: r.empresa ? `${r.empresa.codigoInterno} — ${r.empresa.razaoSocial}` : null,
+      horaInicio: r.horaInicio.toISOString().slice(11, 16),
+      horaFim: r.horaFim.toISOString().slice(11, 16),
+      duracaoMin: Math.round(minutos),
+      quantidade: r.quantidade,
+      unidade: r.atividade.unidadeQuantidade,
+      observacao: r.observacao,
+      gapAntesMin: gapValido,
+    });
   }
 
   const porOperador = Array.from(porOperadorMap.values())
@@ -113,6 +151,12 @@ export async function GET(req: NextRequest) {
       diasComRegistro: o.dias.size,
       totalHoras: Math.round((o.totalMinutos / 60) * 100) / 100,
       mediaHorasPorDia: o.dias.size > 0 ? Math.round((o.totalMinutos / 60 / o.dias.size) * 100) / 100 : 0,
+      // Produtividade: soma dos intervalos parados entre uma tarefa e a
+      // próxima (mesmo dia). Não inclui o tempo antes do primeiro
+      // registro do dia nem depois do último — não dá pra saber quando a
+      // pessoa "começou"/"terminou o expediente" só pelos registros.
+      tempoParadoMin: Math.round(o.totalGapMin),
+      mediaParadoPorDiaMin: o.dias.size > 0 ? Math.round(o.totalGapMin / o.dias.size) : 0,
     }))
     .sort((a, b) => b.totalHoras - a.totalHoras);
 
@@ -151,42 +195,28 @@ export async function GET(req: NextRequest) {
     .map((a) => ({ ...a, operadores: a.operadores.sort((x, y) => y.totalHoras - x.totalHoras) }))
     .sort((a, b) => a.nomeAtividade.localeCompare(b.nomeAtividade));
 
-  // ── Detalhamento por pessoa e por dia, em ordem cronológica ─────────
-  // O que motivou o pedido: as tabelas acima só mostram totais agregados
-  // (quanto tempo, quantos registros) — pra realmente ver O QUE cada
-  // pessoa fez, dia a dia, é preciso o registro individual. `registros`
-  // já vem ordenado por data e depois por horaInicio (ver a query acima),
-  // então só precisa agrupar mantendo essa ordem — nunca reordenar aqui.
-  const porPessoaDiaMap = new Map<string, {
-    usuarioId: string; nome: string;
-    dias: Map<string, { atividade: string; cliente: string | null; horaInicio: string; horaFim: string; duracaoMin: number; quantidade: number | null; unidade: string | null; observacao: string | null }[]>;
-  }>();
-  for (const r of registros) {
-    if (!porPessoaDiaMap.has(r.usuarioId)) {
-      porPessoaDiaMap.set(r.usuarioId, { usuarioId: r.usuarioId, nome: r.usuario.nome, dias: new Map() });
-    }
-    const pessoa = porPessoaDiaMap.get(r.usuarioId)!;
-    const diaStr = r.data.toISOString().slice(0, 10);
-    if (!pessoa.dias.has(diaStr)) pessoa.dias.set(diaStr, []);
-    pessoa.dias.get(diaStr)!.push({
-      atividade: r.atividade.nome,
-      cliente: r.empresa ? `${r.empresa.codigoInterno} — ${r.empresa.razaoSocial}` : null,
-      horaInicio: r.horaInicio.toISOString().slice(11, 16),
-      horaFim: r.horaFim.toISOString().slice(11, 16),
-      duracaoMin: Math.round((r.horaFim.getTime() - r.horaInicio.getTime()) / 60000),
-      quantidade: r.quantidade,
-      unidade: r.atividade.unidadeQuantidade,
-      observacao: r.observacao,
-    });
-  }
+  // porPessoaDiaMap já foi montado no loop principal acima (junto com
+  // porOperadorMap/porOperadorAtividadeMap) — aqui só ordena e soma os
+  // intervalos parados por dia/pessoa pra virar a resposta final.
+  // `registros` vem ordenado por data e depois por horaInicio (ver a
+  // query acima), então os itens de cada dia já chegam em ordem
+  // cronológica — nunca reordenar isso aqui.
   const detalhePorPessoa = Array.from(porPessoaDiaMap.values())
-    .map((p) => ({
-      usuarioId: p.usuarioId,
-      nome: p.nome,
-      dias: Array.from(p.dias.entries())
-        .map(([data, itens]) => ({ data, itens }))
-        .sort((a, b) => a.data.localeCompare(b.data)),
-    }))
+    .map((p) => {
+      const dias = Array.from(p.dias.entries())
+        .map(([data, itens]) => ({
+          data,
+          itens,
+          tempoParadoMin: itens.reduce((s, it) => s + (it.gapAntesMin ?? 0), 0),
+        }))
+        .sort((a, b) => a.data.localeCompare(b.data));
+      return {
+        usuarioId: p.usuarioId,
+        nome: p.nome,
+        tempoParadoMin: dias.reduce((s, d) => s + d.tempoParadoMin, 0),
+        dias,
+      };
+    })
     .sort((a, b) => a.nome.localeCompare(b.nome));
 
   if (formato === "excel") {
@@ -198,6 +228,8 @@ export async function GET(req: NextRequest) {
       "Qtd. registros": o.qtdRegistros,
       "Total de horas": o.totalHoras,
       "Média de horas/dia": o.mediaHorasPorDia,
+      "Tempo parado entre tarefas (min)": o.tempoParadoMin,
+      "Média parado/dia (min)": o.mediaParadoPorDiaMin,
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(abaOperador), "Por operador");
 

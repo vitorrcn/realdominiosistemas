@@ -11,6 +11,8 @@ interface PorOperador {
   diasComRegistro: number;
   totalHoras: number;
   mediaHorasPorDia: number;
+  tempoParadoMin: number;
+  mediaParadoPorDiaMin: number;
 }
 
 interface OperadorNaAtividade {
@@ -37,15 +39,18 @@ interface ItemDoDia {
   quantidade: number | null;
   unidade: string | null;
   observacao: string | null;
+  gapAntesMin: number | null;
 }
 
 interface DiaDaPessoa {
   data: string;
   itens: ItemDoDia[];
+  tempoParadoMin: number;
 }
 
 interface DetalhePessoa {
   usuarioId: string;
+  tempoParadoMin: number;
   nome: string;
   dias: DiaDaPessoa[];
 }
@@ -217,7 +222,10 @@ export default function RelatorioHorasPage() {
         <>
           <div className="card !p-0 overflow-hidden">
             <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-              <h3 className="text-xs font-semibold text-gray-600 uppercase">Total de horas por operador</h3>
+              <h3 className="text-xs font-semibold text-gray-600 uppercase">Horas e produtividade por operador</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                &ldquo;Tempo parado&rdquo; é o intervalo entre uma tarefa e a próxima no mesmo dia — não conta o tempo antes do primeiro nem depois do último registro.
+              </p>
             </div>
             {porOperador.length === 0 ? (
               <p className="text-center py-8 text-gray-400 text-sm">Nenhum registro no período.</p>
@@ -230,6 +238,8 @@ export default function RelatorioHorasPage() {
                     <th className="text-right">Qtd. registros</th>
                     <th className="text-right">Total de horas</th>
                     <th className="text-right">Média/dia</th>
+                    <th className="text-right">Tempo parado</th>
+                    <th className="text-right">Parado/dia</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -245,6 +255,8 @@ export default function RelatorioHorasPage() {
                       <td className="text-right">{o.qtdRegistros}</td>
                       <td className="text-right font-semibold">{formatarMin(o.totalHoras * 60)}</td>
                       <td className="text-right">{formatarMin(o.mediaHorasPorDia * 60)}</td>
+                      <td className="text-right text-amber-700">{o.tempoParadoMin > 0 ? formatarMin(o.tempoParadoMin) : "—"}</td>
+                      <td className="text-right text-gray-500">{o.mediaParadoPorDiaMin > 0 ? formatarMin(o.mediaParadoPorDiaMin) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -329,6 +341,9 @@ export default function RelatorioHorasPage() {
                         <span className="text-sm font-medium text-gray-900">{p.nome}</span>
                         <span className="text-xs text-gray-400 flex-shrink-0">
                           {p.dias.length} dia{p.dias.length !== 1 ? "s" : ""} · {totalItens} registro{totalItens !== 1 ? "s" : ""}
+                          {p.tempoParadoMin > 0 && (
+                            <span className="text-amber-600 ml-2">· {formatarMin(p.tempoParadoMin)} parado</span>
+                          )}
                           <span className="ml-2">{aberto ? "▲" : "▼"}</span>
                         </span>
                       </button>
@@ -336,22 +351,40 @@ export default function RelatorioHorasPage() {
                         <div className="px-4 pb-3 space-y-3">
                           {p.dias.map((d) => (
                             <div key={d.data}>
-                              <div className="text-xs font-semibold text-gray-600 mb-1">{formatarDiaSemana(d.data)}</div>
+                              <div className="text-xs font-semibold text-gray-600 mb-1 flex items-center gap-2">
+                                {formatarDiaSemana(d.data)}
+                                {d.tempoParadoMin > 0 && (
+                                  <span className="text-[11px] font-normal text-amber-600">
+                                    · {formatarMin(d.tempoParadoMin)} parado entre tarefas
+                                  </span>
+                                )}
+                              </div>
                               <div className="space-y-1">
                                 {d.itens.map((it, i) => (
-                                  <div key={i} className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-2.5 py-1.5">
-                                    <span className="font-mono text-gray-400 flex-shrink-0 w-24">
-                                      {it.horaInicio}–{it.horaFim}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                      <span className="text-gray-800">{it.atividade}</span>
-                                      {it.cliente && <span className="text-gray-400"> — {it.cliente}</span>}
-                                      {it.quantidade != null && (
-                                        <span className="text-gray-400"> · {it.quantidade} {it.unidade || "un."}</span>
-                                      )}
-                                      {it.observacao && <div className="text-gray-400 italic">{it.observacao}</div>}
+                                  <div key={i}>
+                                    {it.gapAntesMin != null && it.gapAntesMin > 0 && (
+                                      <div className="flex items-center gap-2 pl-2 py-0.5">
+                                        <div className="flex-1 border-t border-dashed border-amber-200" />
+                                        <span className="text-[10px] text-amber-600 flex-shrink-0">
+                                          ⏱ {formatarMin(it.gapAntesMin)} parado
+                                        </span>
+                                        <div className="flex-1 border-t border-dashed border-amber-200" />
+                                      </div>
+                                    )}
+                                    <div className="flex items-start gap-2 text-xs bg-gray-50 rounded-md px-2.5 py-1.5">
+                                      <span className="font-mono text-gray-400 flex-shrink-0 w-24">
+                                        {it.horaInicio}–{it.horaFim}
+                                      </span>
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-gray-800">{it.atividade}</span>
+                                        {it.cliente && <span className="text-gray-400"> — {it.cliente}</span>}
+                                        {it.quantidade != null && (
+                                          <span className="text-gray-400"> · {it.quantidade} {it.unidade || "un."}</span>
+                                        )}
+                                        {it.observacao && <div className="text-gray-400 italic">{it.observacao}</div>}
+                                      </div>
+                                      <span className="text-gray-400 flex-shrink-0">{formatarMin(it.duracaoMin)}</span>
                                     </div>
-                                    <span className="text-gray-400 flex-shrink-0">{formatarMin(it.duracaoMin)}</span>
                                   </div>
                                 ))}
                               </div>

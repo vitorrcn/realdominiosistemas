@@ -126,6 +126,17 @@ export async function PATCH(
 
     const desmarcar = !dataConclusao;
 
+    // Colaborador não pode "adiantar o relógio pra trás" — marcar como
+    // entregue numa data anterior a hoje (esconderia atraso real). Líder
+    // e Diretoria seguem podendo corrigir uma data histórica se precisar.
+    if (!desmarcar && user.perfilGlobal === "OPERADOR") {
+      const hojeUtc = new Date(); hojeUtc.setUTCHours(0, 0, 0, 0);
+      const dataEscolhida = new Date(dataConclusao); dataEscolhida.setUTCHours(0, 0, 0, 0);
+      if (dataEscolhida < hojeUtc) {
+        return NextResponse.json({ error: "Não é possível marcar entrega com data anterior a hoje" }, { status: 400 });
+      }
+    }
+
     const instancia = await prisma.obrigacaoInstancia.upsert({
       where: { obrigacaoEmpresaId_competencia: { obrigacaoEmpresaId, competencia } },
       update: {
