@@ -39,6 +39,7 @@ export default function ConfigAutomacaoPage() {
   }
 
   if (carregando || !form) return <div className="text-center py-12 text-gray-400">Carregando...</div>;
+  if (form.error) return <div className="text-center py-12 text-red-500">{form.error}</div>;
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -89,6 +90,13 @@ export default function ConfigAutomacaoPage() {
               Enviar e-mail diário com a listagem de todas as empresas pendentes, pra todo mundo do setor
             </span>
           </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 rounded text-brand-600"
+              checked={form.alertaObrigacoesIndividualAtivo} onChange={(e) => set("alertaObrigacoesIndividualAtivo", e.target.checked)} />
+            <span className="text-sm text-gray-700">
+              Enviar e-mail individual diário pra cada operador, só com as obrigações que são dele
+            </span>
+          </label>
           <div>
             <label className="label">Dias de antecedência antes do vencimento</label>
             <input className="input max-w-[140px]" type="number" min={0} max={90}
@@ -96,9 +104,10 @@ export default function ConfigAutomacaoPage() {
               onChange={(e) => set("diasAntecedenciaVencimento", Number(e.target.value))} />
             <p className="text-xs text-gray-400 mt-1">
               Obrigações que vencem dentro desse número de dias (e todas as que já estão em atraso) entram
-              na listagem enviada pra todo mundo do setor.
+              nos dois e-mails acima.
             </p>
           </div>
+          <EnviarObrigacoesAgora />
         </div>
 
         <div className={`card space-y-3 ${form.pausadoGeral ? "opacity-50 pointer-events-none" : ""}`}>
@@ -168,6 +177,41 @@ export default function ConfigAutomacaoPage() {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// Disparo manual do e-mail de obrigações pendentes (digest por setor +
+// individual por operador), fora do horário do cron diário — mesmo
+// padrão do "Enviar por e-mail agora" do relatório de horas.
+function EnviarObrigacoesAgora() {
+  const [enviando, setEnviando] = useState(false);
+  const [resultado, setResultado] = useState<string | null>(null);
+
+  async function enviar() {
+    if (!confirm("Enviar agora o e-mail de obrigações pendentes (digest por setor + individual por operador)?")) return;
+    setEnviando(true);
+    setResultado(null);
+    const res = await fetch("/api/obrigacoes/pendentes/enviar", { method: "POST" });
+    const json = await res.json().catch(() => ({}));
+    setEnviando(false);
+    if (res.ok) {
+      setResultado(`Enviado! ${json.porSetor} digest(s) por setor e ${json.porOperador} e-mail(s) individual(is).`);
+    } else {
+      setResultado(`Erro: ${json.error ?? "não foi possível enviar."}`);
+    }
+  }
+
+  return (
+    <div className="pt-2 border-t border-gray-100 space-y-2">
+      <button type="button" onClick={enviar} disabled={enviando} className="btn btn-sm">
+        {enviando ? "Enviando..." : "Enviar por e-mail agora"}
+      </button>
+      {resultado && (
+        <div className={`text-xs px-3 py-2 rounded-lg border ${resultado.startsWith("Erro") ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"}`}>
+          {resultado}
+        </div>
+      )}
     </div>
   );
 }

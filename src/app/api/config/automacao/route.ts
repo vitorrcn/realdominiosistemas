@@ -7,6 +7,7 @@ const DEFAULTS = {
   pausadoGeral: false,
   diasAntecedenciaVencimento: 7,
   alertaObrigacoesAtivo: true,
+  alertaObrigacoesIndividualAtivo: true,
   alertaCarteiraSemRespAtivo: true,
   relatorioIndividualAtivo: true,
   relatorioIndividualDiaSemana: 1,
@@ -30,6 +31,7 @@ export async function GET() {
     pausadoGeral: config?.pausadoGeral ?? DEFAULTS.pausadoGeral,
     diasAntecedenciaVencimento: config?.diasAntecedenciaVencimento ?? DEFAULTS.diasAntecedenciaVencimento,
     alertaObrigacoesAtivo: config?.alertaObrigacoesAtivo ?? DEFAULTS.alertaObrigacoesAtivo,
+    alertaObrigacoesIndividualAtivo: config?.alertaObrigacoesIndividualAtivo ?? DEFAULTS.alertaObrigacoesIndividualAtivo,
     alertaCarteiraSemRespAtivo: config?.alertaCarteiraSemRespAtivo ?? DEFAULTS.alertaCarteiraSemRespAtivo,
     relatorioIndividualAtivo: config?.relatorioIndividualAtivo ?? DEFAULTS.relatorioIndividualAtivo,
     relatorioIndividualDiaSemana: config?.relatorioIndividualDiaSemana ?? DEFAULTS.relatorioIndividualDiaSemana,
@@ -53,7 +55,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const {
       pausadoGeral,
-      diasAntecedenciaVencimento, alertaObrigacoesAtivo, alertaCarteiraSemRespAtivo,
+      diasAntecedenciaVencimento, alertaObrigacoesAtivo, alertaObrigacoesIndividualAtivo, alertaCarteiraSemRespAtivo,
       relatorioIndividualAtivo, relatorioIndividualDiaSemana,
       relatorioComparativoAtivo, relatorioComparativoDiaSemana,
       copiaEmailsFixos,
@@ -73,6 +75,7 @@ export async function PUT(req: NextRequest) {
       pausadoGeral: !!pausadoGeral,
       diasAntecedenciaVencimento: dias,
       alertaObrigacoesAtivo: !!alertaObrigacoesAtivo,
+      alertaObrigacoesIndividualAtivo: !!alertaObrigacoesIndividualAtivo,
       alertaCarteiraSemRespAtivo: !!alertaCarteiraSemRespAtivo,
       relatorioIndividualAtivo: !!relatorioIndividualAtivo,
       relatorioIndividualDiaSemana: diaInd,

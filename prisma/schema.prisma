@@ -728,6 +728,10 @@ model ConfiguracaoAutomacao {
   pausadoGeral                  Boolean  @default(false)
   diasAntecedenciaVencimento    Int      @default(7)
   alertaObrigacoesAtivo         Boolean  @default(true)
+  // E-mail individual (um por operador, só com o que é dele) além do
+  // digest coletivo por setor acima - as duas coisas podem ficar ligadas
+  // ao mesmo tempo, são independentes.
+  alertaObrigacoesIndividualAtivo Boolean @default(true)
   alertaCarteiraSemRespAtivo    Boolean  @default(true)
   relatorioIndividualAtivo      Boolean  @default(true)
   // 0=domingo, 1=segunda, ... 6=sabado (mesma convencao do JS Date.getUTCDay())

@@ -492,6 +492,47 @@ export function emailDigestObrigacoesSetorHtml(p: {
   return envelopeHtml(`${p.itens.length} obrigação(ões) pendente(s) - ${p.setor}`, corpo);
 }
 
+// Versão personalizada do digest acima — em vez de um e-mail só por
+// setor com todo mundo junto, um e-mail por operador, só com as
+// obrigações que são responsabilidade DELE (de qualquer setor).
+export function emailObrigacoesPendentesOperadorHtml(p: {
+  nome: string;
+  itens: { empresa: string; obrigacao: string; setor: string; vencimento: string; diasRestantes: number; atrasada: boolean }[];
+  url: string;
+}): string {
+  const atrasadas = p.itens.filter((i) => i.atrasada);
+  const proximas = p.itens.filter((i) => !i.atrasada);
+
+  function linha(i: (typeof p.itens)[number]) {
+    const cor = i.atrasada ? "#dc2626" : "#d97706";
+    return `<tr>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#111827;font-size:13px;">${i.empresa}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#111827;font-size:13px;">${i.obrigacao}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;color:#6b7280;font-size:12px;">${i.setor}</td>
+      <td style="padding:8px 0;border-top:1px solid #f1f2f4;font-size:12px;text-align:right;color:${cor};font-weight:700;white-space:nowrap;">${i.atrasada ? "Em atraso" : `${i.vencimento} (${i.diasRestantes}d)`}</td>
+    </tr>`;
+  }
+
+  const corpo = `
+    ${badge("SUAS OBRIGAÇÕES PENDENTES", "#d97706")}
+    <h2 style="margin:12px 0 4px;color:#111827;font-size:18px;">Olá, ${p.nome}</h2>
+    <p style="margin:0 0 18px;color:#6b7280;font-size:12.5px;">
+      Você tem ${atrasadas.length} obrigação(ões) em atraso e ${proximas.length} vencendo em breve.
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Cliente</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Obrigação</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;">Setor</td>
+        <td style="padding-bottom:6px;color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;text-align:right;">Situação</td>
+      </tr>
+      ${[...atrasadas, ...proximas].map(linha).join("")}
+    </table>
+    <a href="${p.url}" style="display:inline-block;margin-top:20px;background:#0f172a;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:10px 18px;border-radius:8px;">Ver obrigações no sistema</a>
+  `;
+  return envelopeHtml(`${p.itens.length} obrigação(ões) pendente(s) com você`, corpo);
+}
+
 // Alerta pros supervisores de um setor: empresas ativas que não têm
 // ninguém atribuído como responsável naquele setor (buraco na carteira).
 export function emailAlertaCarteiraSemResponsavelHtml(p: {

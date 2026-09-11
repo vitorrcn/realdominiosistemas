@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { calcularVencimento, formatData } from "@/lib/utils";
+import { formatData } from "@/lib/utils";
 import { SETOR_RESP_FIELD } from "@/lib/auth";
 import { STATUS_EMPRESA_GERA_OBRIGACAO } from "@/lib/obrigacoes";
-import { enviarEmail, emailDigestObrigacoesSetorHtml, emailAlertaCarteiraSemResponsavelHtml } from "@/lib/mail";
+import { enviarEmail, emailAlertaCarteiraSemResponsavelHtml } from "@/lib/mail";
 import { relatoriosIndividuais, relatorioComparativo } from "@/lib/relatorioHorasEmail";
+import { digestObrigacoesPorSetor, obrigacoesPendentesPorOperador } from "@/lib/obrigacoesPendentesEmail";
 
 // GET/POST /api/cron/diario — chamado uma vez por dia pelo Vercel Cron.
 // Se "pausadoGeral" estiver ligado em Configurações > Automações, não
@@ -36,6 +37,7 @@ const CONFIG_PADRAO = {
   pausadoGeral: false,
   diasAntecedenciaVencimento: 7,
   alertaObrigacoesAtivo: true,
+  alertaObrigacoesIndividualAtivo: true,
   alertaCarteiraSemRespAtivo: true,
   relatorioIndividualAtivo: true,
   relatorioIndividualDiaSemana: 1,
@@ -46,107 +48,6 @@ const CONFIG_PADRAO = {
 async function buscarConfig() {
   const config = await prisma.configuracaoAutomacao.findUnique({ where: { id: "config" } });
   return config ?? CONFIG_PADRAO;
-}
-
-// Digest diário: pra cada setor, lista todas as obrigações em atraso ou
-// vencendo dentro de `diasAntecedencia` dias, numa listagem só, e manda
-// num ÚNICO e-mail (vários destinatários, não um e-mail por pessoa) pros
-// responsáveis das empresas pendentes + supervisores do setor.
-async function digestObrigacoesPorSetor(diasAntecedencia: number) {
-  const hoje = new Date();
-  const hojeUtc = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth(), hoje.getUTCDate()));
-
-  const candidatas = await prisma.obrigacaoInstancia.findMany({
-    where: { status: { notIn: ["CONCLUIDO", "NAO_SE_APLICA"] } },
-    select: {
-      id: true,
-      competencia: true,
-      status: true,
-      obrigacaoEmpresa: {
-        select: {
-          empresaId: true,
-          empresa: {
-            select: {
-              codigoInterno: true, razaoSocial: true, deletedAt: true, ativo: true, status: true,
-              respFiscalId: true, respContabilId: true, respDpId: true, respSocietId: true,
-            },
-          },
-          template: {
-            select: { nome: true, diaVencimento: true, vencimentoMesSeguinte: true, setorId: true, setor: { select: { nome: true } } },
-          },
-        },
-      },
-    },
-  });
-
-  type Item = { empresa: string; obrigacao: string; vencimento: string; diasRestantes: number; atrasada: boolean; responsavelId: string | null };
-  const porSetor = new Map<string, { setorNome: string; itens: Item[] }>();
-
-  for (const inst of candidatas) {
-    const empresa = inst.obrigacaoEmpresa.empresa;
-    if (!empresa.ativo || empresa.deletedAt) continue;
-    if (!STATUS_EMPRESA_GERA_OBRIGACAO.includes(empresa.status)) continue;
-
-    const template = inst.obrigacaoEmpresa.template;
-    const vencimento = calcularVencimento(inst.competencia, template.diaVencimento, template.vencimentoMesSeguinte);
-    if (!vencimento) continue;
-
-    const diasRestantes = Math.round((vencimento.getTime() - hojeUtc.getTime()) / 86_400_000);
-    const atrasada = inst.status === "EM_ATRASO";
-    const dentroDaJanela = diasRestantes >= 0 && diasRestantes <= diasAntecedencia;
-    if (!atrasada && !dentroDaJanela) continue;
-
-    const campoResp = SETOR_RESP_FIELD[template.setor.nome];
-    const responsavelId = campoResp ? (empresa as any)[campoResp] : null;
-
-    if (!porSetor.has(template.setorId)) porSetor.set(template.setorId, { setorNome: template.setor.nome, itens: [] });
-    porSetor.get(template.setorId)!.itens.push({
-      empresa: `${empresa.codigoInterno} - ${empresa.razaoSocial}`,
-      obrigacao: template.nome,
-      vencimento: formatData(vencimento),
-      diasRestantes,
-      atrasada,
-      responsavelId,
-    });
-  }
-
-  let enviados = 0;
-  for (const [setorId, { setorNome, itens }] of porSetor) {
-    if (itens.length === 0) continue;
-
-    const respIds = Array.from(new Set(itens.map((i) => i.responsavelId).filter(Boolean))) as string[];
-    const responsaveis = respIds.length > 0
-      ? await prisma.usuario.findMany({ where: { id: { in: respIds }, ativo: true }, select: { id: true, nome: true, email: true } })
-      : [];
-    const nomePorId = new Map(responsaveis.map((r) => [r.id, r.nome]));
-    const itensComNome = itens.map((i) => ({ ...i, responsavel: i.responsavelId ? nomePorId.get(i.responsavelId) ?? null : null }));
-
-    const supervisores = await prisma.usuarioSetor.findMany({
-      where: { setorId, papel: "supervisor", usuario: { ativo: true } },
-      select: { usuario: { select: { id: true, nome: true, email: true } } },
-    });
-
-    // Responsáveis das empresas pendentes + supervisores do setor, sem
-    // duplicar quem for as duas coisas ao mesmo tempo — e tudo num único
-    // e-mail (vários destinatários), não um e-mail por pessoa.
-    const destinatariosMap = new Map<string, { id: string; nome: string; email: string }>();
-    for (const r of responsaveis) destinatariosMap.set(r.id, r);
-    for (const s of supervisores) destinatariosMap.set(s.usuario.id, s.usuario);
-    const destinatarios = Array.from(destinatariosMap.values());
-    if (destinatarios.length === 0) continue;
-
-    const html = emailDigestObrigacoesSetorHtml({
-      setor: setorNome,
-      itens: itensComNome,
-      url: `${BASE_URL}/obrigacoes`,
-    });
-    const atrasadasCount = itens.filter((i) => i.atrasada).length;
-    const assunto = `${itens.length} obrigação(ões) pendente(s) - ${setorNome}${atrasadasCount > 0 ? ` (${atrasadasCount} em atraso)` : ""}`;
-    await enviarEmail({ para: destinatarios.map((d) => d.email), assunto, html });
-    enviados++;
-  }
-
-  return enviados;
 }
 
 // Alerta pros supervisores de cada setor: empresa ativa sem ninguém
@@ -226,6 +127,9 @@ async function handler(req: NextRequest) {
 
   if (config.alertaObrigacoesAtivo) {
     resultado.digestObrigacoes = await digestObrigacoesPorSetor(config.diasAntecedenciaVencimento);
+  }
+  if ((config as any).alertaObrigacoesIndividualAtivo ?? true) {
+    resultado.obrigacoesPorOperador = await obrigacoesPendentesPorOperador(config.diasAntecedenciaVencimento);
   }
   if (config.alertaCarteiraSemRespAtivo) {
     resultado.alertaCarteiraSemResp = await alertarCarteiraSemResponsavel();
